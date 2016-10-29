@@ -7,16 +7,28 @@ from collections import OrderedDict
 
 BASE_URL = 'http://localhost:9000/'
 
+def debugp(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
 class EdgeFollowError(KeyError): pass
 class EdgeExistsError(Exception): pass
 
-debugp = print
+class CompileError(Exception):
+
+    def __init__(self, phrase, messages):
+        self.phrase = phrase
+        self.messages = messages
+        self.message = 'In phrase: {}\n\t{}'.format(
+            repr(self.phrase), '\n\t'.join([m for m in self.messages]))
+
+    def __str__(self):
+        return self.message
 
 class Word:
     text = ''
-    word_no = None      # Index of word in list of words in sentence
-    pos = ''            # Part of speech
-    phrase = ''         # Yield in dependency tree
+    word_no = None  # Index of word in list of words in sentence
+    pos = ''        # Part of speech
+    phrase = ''     # Yield in dependency tree
 
     def __init__(self, text, word_no, pos):
         self.text = text
@@ -27,14 +39,14 @@ class Word:
         self.word_objs = [] # type: List[Word] # ordered list of words in phrase
 
     def __str__(self):
-        return "Word({}, word_no={}, pos={})".format(self.text, self.word_no, self.pos)
+        return 'Word({}, word_no={}, pos={})'.format(self.text, self.word_no, self.pos)
     def __repr__(self):
         return str(self)
 
     def add_edge(self, edge_type, word):
         # type: (str, Word) -> None
         if edge_type in self.edges:
-            raise EdgeExistsError("edge type {} is already present in word {}".format(edge_type, self.text))
+            raise EdgeExistsError('edge type {} is already present in word {}'.format(edge_type, self.text))
         else:
             self.edges[edge_type] = word
 
@@ -46,13 +58,13 @@ class Word:
                 word = word.edges[edge]
             except KeyError:
                 if throw:
-                    raise EdgeFollowError("{}.get({}) failed".format(self, edge_seq))
+                    raise EdgeFollowError('{}.get({}) failed'.format(self, edge_seq))
                 else:
                     return None
         return word
 
-def print_preorder(word, edge_type='root', indent=0):
-    print('{}{}: {}, {}'.format('  '*indent, edge_type, repr(word.text), repr(word.phrase)))
+def print_preorder(word, edge_type='root', indent=0, file=sys.stdout):
+    print('{}{}: {}, {}'.format('  '*indent, edge_type, repr(word.text), repr(word.phrase)), file=file)
     for edge_type2, word2 in sorted(word.edges.items(), key=(lambda x: x[1].word_no)):
         print_preorder(word2, edge_type2, indent + 1)
 
@@ -73,16 +85,16 @@ def find_phrase(word):
 
 def parse_text(text):
 
-    params = {'properties': '{"annotators": "pos,depparse", "outputFormat": "json"}'}
+    params = {'properties': "{'annotators': 'pos,depparse', 'outputFormat': 'json'}"}
 
-    print("Request sent", file=sys.stderr)
+    debugp('Request sent')
     r = requests.post(BASE_URL, params=params, data=text)
 
-    print("Status: {}\n".format(r.status_code), file=sys.stderr)
-#   print(r.text)
-#   print(json.dumps(json.loads(r.text), indent=2))
+    debugp('Status: {}\n'.format(r.status_code))
+#   debugp(r.text)
+#   debugp(json.dumps(json.loads(r.text), indent=2))
 
-    return [parse_sentence(sentence, text) for sentence in r.json()["sentences"]]
+    return [parse_sentence(sentence, text) for sentence in r.json()['sentences']]
 
 def parse_sentence(sentence, text):
     """Analyzes a JSON sentence and returns the root word object"""
@@ -90,18 +102,18 @@ def parse_sentence(sentence, text):
     words_dict = OrderedDict()
     least_index = 1<<30
     highest_index = 0
-    for token in sentence["tokens"]:
-        word = Word(token["word"], token["index"], token["pos"])
+    for token in sentence['tokens']:
+        word = Word(token['word'], token['index'], token['pos'])
         words_list.append(word)
-        words_dict[token["word"]] = word
-        least_index = min(least_index, token["characterOffsetBegin"])
-        highest_index = max(highest_index, token["characterOffsetEnd"])
+        words_dict[token['word']] = word
+        least_index = min(least_index, token['characterOffsetBegin'])
+        highest_index = max(highest_index, token['characterOffsetEnd'])
 
     root = None
-    for edge in sentence["basic-dependencies"]:
-        governor_index = edge["governor"]
-        dependent = words_list[edge["dependent"] - 1]
-        edge_type = edge["dep"]
+    for edge in sentence['basic-dependencies']:
+        governor_index = edge['governor']
+        dependent = words_list[edge['dependent'] - 1]
+        edge_type = edge['dep']
         if governor_index == 0:
             root = dependent
         else:
@@ -111,19 +123,70 @@ def parse_sentence(sentence, text):
     find_phrase(root)
     return root
 
-
 class CSR:
-    def detect(self, word):
-        return None
+    """Control Structure Recognizer
+    There are 2 types of CSR, terminal CSRs and non-terminal CSRs.
+    Terminal CSRs will directly produce target code
+    Non-terminal CSRs will split phrases into parts to be handled by other CSRs.
+    """
 
-class MoveCSR:
+    def detect(self, word, env=None):
+        """
+        Detect whether this control structure exists in a particular text.
+        Output parameters of this control structure if it exists, otherwise output None.
+        If it is found that the control structure is correct but has been used wrongly, raise a
+        """
+        pass
 
-    directions = ['forwards', 'backwards', 'upwards', 'downwards', 'leftwards', 'rightwards',
-        'up', 'down', 'left', 'right', 'clockwise', 'anticlockwise']
-    units = ['units', 'pixels', 'meters', 'degrees', 'radians']
-    actions = ['move', 'shift', 'turn', 'rotate']
+    def apply(self, word, params, env=None):
+        """
+        Output python code for this CSR for the phrase represented by word.
+        Raise a CompilerError exception with error messages for the user if needed.
+        """
+        pass
 
-    def detect(self, word):
+class MoveCSR(CSR):
+
+    directions = {'ahead': 'forward',
+        'forward': 'forward',
+        'forwards': 'forward',
+        'backward': 'backward',
+        'backwards': 'backward',
+        'up': 'up',
+        'upward': 'up',
+        'upwards': 'up',
+        'down': 'down',
+        'downward': 'down',
+        'downwards': 'down',
+        'left': 'left',
+        'leftward': 'left',
+        'leftwards': 'left',
+        'anticlockwise': 'left',
+        'right': 'right',
+        'rightward': 'right',
+        'rightwards': 'right',
+        'clockwise': 'right',
+    }
+    units = {
+        'unit': 'pixel',
+        'units': 'pixel',
+        'step': 'pixel',
+        'steps': 'pixel',
+        'pixel': 'pixel',
+        'pixels': 'pixel',
+        'degree': 'degree',
+        'degrees': 'degree',
+        'radian': 'radian',
+        'radians': 'radian',
+    }
+    actions = {
+        'move': 'move',
+        'shift': 'move',
+        'turn': 'turn',
+        'rotate': 'turn',
+    }
+
+    def detect(self, word, env=None):
         """
         A phrase is roughly a movement command if:
         1. It has the word 'move', 'turn', etc and that is a verb.
@@ -131,43 +194,122 @@ class MoveCSR:
         4. It has the word 'forward' or 'backward' or 'upward' etc.
         3. It has the word 'units' or 'pixels' with a number adjoining it.
         """
-        action_words = [word for word in word.word_objs if (word.text.lower() in MoveCSR.actions and word.pos == 'VB')]
+        action_words = [word for word in word.word_objs
+            if word.text.lower() in self.actions and word.pos == 'VB']
         name_words = [word for word in word.word_objs if word.pos == 'NNP']
-        direction_words = [word for word in word.word_objs
-            if (word.text in self.directions or word.text+'s' in self.directions)]
-        unit_words = [word for word in word.word_objs
-            if (word.text in self.units or word.text+'s' in self.units)]
+        direction_words = [word for word in word.word_objs if word.text in self.directions]
+        unit_words = [word for word in word.word_objs if word.text in self.units]
 
-        debugp("action_words={}\nname_words={}\ndirection_words={}\nunit_words={}".format(
-            action_words, name_words, direction_words, unit_words))
+        debugp('MoveCSR: {}:'.format(repr(word.phrase)))
+        debugp('\taction_words={}'.format(action_words))
+        debugp('\tname_words={}'.format(name_words))
+        debugp('\tdirection_words={}'.format(direction_words))
+        debugp('\tunit_words={}'.format(unit_words))
+
+        if len(action_words) > 1:
+            debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
+
         if not (len(action_words) == 1 and len(name_words) == 1 and len(direction_words) == 1 and len(unit_words) == 1):
             return None
+
         action_word = action_words[0]
         name_word = name_words[0]
         direction_word = direction_words[0]
         unit_word = unit_words[0]
 
-        if len(action_words) > 1:
-            debugp("Multiple action words detected in phrase:\n{}".format(word.phrase), file=sys.stderr)
-
-        parameters = {}
+        params = {}
         try:
-            parameters["action"] = action_word.text.lower()
-            parameters["unit"] = unit_word.text.strip('s')
-            parameters["amount"] = unit_word.get(['nummod']).text
-            parameters["direction"] = direction_word.text.strip('s')
-            parameters["name"] = name_word.text
-            return parameters
+            params["action"] = self.actions[action_word.text.lower()]
+            params["unit"] = self.units[unit_word.text]
+            params["direction"] = self.directions[direction_word.text]
+            params["name"] = name_word.text.lower()
+            params["amount"] = unit_word.get(['nummod']).text
+            return params
         except EdgeFollowError:
             return None
+
+    def apply(self, word, params, env=None):
+        raw_amount = params["amount"]
+        try:
+            amount = float(raw_amount)
+        except ValueError:
+            raise CompilerError(word.phrase, ['{} is not a valid number.'.format(repr(raw_amount))])
+
+        action = params["action"]
+        unit = params["unit"]
+        direction = params["direction"]
+        name = params["name"]
+
+        errmsgs = []
+        if action == 'move':
+            if unit != 'pixel':
+                unit_errmsg = 'Incorrect unit {} for action {}.'.format(
+                    repr(unit_word.text), repr(action_word.text))
+                errmsgs.append(unit_errmsg)
+            if direction in ['forward', 'backward']:
+                output = '{}.{}({})'.format(name, direction, amount)
+            else:
+                if amount > 0:
+                    amount_to_add = '+ ' + str(amount)
+                    amount_to_sub = '- ' + str(amount)
+                elif amount < 0:
+                    amount_to_add = '- ' + str(-amount)
+                    amount_to_sub = '+ ' + str(-amount)
+                else:
+                    amount_to_add = ''
+                    amount_to_sub = ''
+                if direction == 'up':
+                    output = '{name}.sety({name}.ycor{a2a})'.format(name=name, a2a=amount_to_add)
+                elif direction == 'down':
+                    output = '{name}.sety({name}.ycor{a2s})'.format(name=name, a2s=amount_to_sub)
+                if direction == 'right':
+                    output = '{name}.setx({name}.xcor{a2a})'.format(name=name, a2a=amount_to_add)
+                elif direction == 'left':
+                    output = '{name}.setx({name}.xcor{a2s})'.format(name=name, a2s=amount_to_sub)
+                else:
+                    dir_errmsg = 'Incorrect direction {} for this action {}.'.format(
+                        repr(direction_word.text), repr(action_word.text))
+                    errmsgs.append(direrrmsg)
+        elif action == 'turn':
+            if unit in ['degree', 'radian']:
+                output = '{name}.{unit}s(); {name}.{direction}({amount})'.format(
+                    name=name, unit=unit, direction=direction, amount=amount)
+            else:
+                unit_errmsg = 'Incorrect unit {} for action {}.'.format(
+                    repr(unit_word.text), repr(action_word.text))
+                errmsgs.append(unit_errmsg)
+
+        if errmsgs:
+            raise CompileError(word.phrase, errmsgs)
+        else:
+            return output
+
+terminal_CSRs = [MoveCSR()]
+nonterminal_CSRs = []
+
+def apply_csrs(word, csr_list):
+    csr_params = {}
+    for csr in csr_list:
+        params = csr.detect(word)
+        if params is not None:
+            csr_params[csr] = params
+    if len(csr_params) > 1:
+        raise CompileError(word.phrase, "Multiple CSRs required: " + [str(csr) for csr in csr_params])
+    elif len(csr_params) == 1:
+        csr, params = list(csr_params.items())[0]
+        output = csr.apply(word, params)
+        return output
+    else:
+        return None
+
+def convert(word):
+    return apply_csrs(word, nonterminal_CSRs) or apply_csrs(word, terminal_CSRs)
 
 def main():
     sentences = parse_text(input())
     for s in sentences:
-        print(repr(s.phrase))
-        print_preorder(s)
-        print()
-        print(MoveCSR().detect(s))
+        output = convert(s)
+        print(output)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
