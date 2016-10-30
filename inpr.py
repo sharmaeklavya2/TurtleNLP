@@ -84,7 +84,7 @@ class Interpreter:
             instr = self.history[self.line_no]
             op, *args = instr.split()
             if op not in opcodes:
-                raise InterpreterError("Invalid opcode")
+                raise InterpreterError("Invalid opcode {}".format(repr(op)))
             elif len(args) != len(opcodes[op]):
                 raise InterpreterError("Invalid number of arguments for {}".format(repr(op)))
             elif check_types(args, opcodes):
@@ -118,10 +118,23 @@ class Interpreter:
                 self.basic_interpret(op, args)
                 self.line_no += 1
 
+import argparse
+
 def main():
-    inpr = Interpreter(sys.stdin, sys.stdout, '>>> ', sys.stderr)
-    #inpr = Interpreter(iter(['fd eklavya 100', 'rol eklavya 90']), sys.stdout)
-    inpr.run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('file', nargs='?',
+        help='Turtle source code to intrepret. Open interactive shell if not specified.')
+    args = parser.parse_args()
+
+    if args.file is None:
+        print("Turtle interpreter")
+        inpr = Interpreter(sys.stdin, sys.stdout, '>>> ', sys.stderr)
+        inpr.run()
+        print()
+    else:
+        with open(args.file) as fobj:
+            inpr = Interpreter(fobj, sys.stdout)
+            inpr.run()
 
 if __name__ == '__main__':
     main()

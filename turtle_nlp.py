@@ -18,7 +18,7 @@ class CompileError(Exception):
     def __init__(self, phrase, messages):
         self.phrase = phrase
         self.messages = messages
-        self.message = 'In phrase: {}\n\t{}'.format(
+        self.message = 'Error in phrase: {}\n\t{}'.format(
             repr(self.phrase), '\n\t'.join([m for m in self.messages]))
 
     def __str__(self):
@@ -46,7 +46,8 @@ class Word:
     def add_edge(self, edge_type, word):
         # type: (str, Word) -> None
         if edge_type in self.edges:
-            raise EdgeExistsError('edge type {} is already present in word {}'.format(edge_type, self.text))
+            raise EdgeExistsError('edge type {} is already present in word {}.'.format(
+                repr(edge_type), repr(self.text)))
         else:
             self.edges[edge_type] = word
 
@@ -87,12 +88,8 @@ def parse_text(text):
 
     params = {'properties': "{'annotators': 'pos,depparse', 'outputFormat': 'json'}"}
 
-    debugp('Request sent')
     r = requests.post(BASE_URL, params=params, data=text)
-
-    debugp('Status: {}\n'.format(r.status_code))
-#   debugp(r.text)
-#   debugp(json.dumps(json.loads(r.text), indent=2))
+    r.raise_for_status()
 
     return [parse_sentence(sentence, text) for sentence in r.json()['sentences']]
 
@@ -147,11 +144,16 @@ class CSR:
 
 class MoveCSR(CSR):
 
-    directions = {'ahead': 'forward',
-        'forward': 'forward',
-        'forwards': 'forward',
-        'backward': 'backward',
-        'backwards': 'backward',
+    def __str__(self):
+        return 'MoveCSR()'
+    def __repr__(self):
+        return str(self)
+
+    directions = {'ahead': 'fd',
+        'forward': 'fd',
+        'forwards': 'fd',
+        'backward': 'bk',
+        'backwards': 'bk',
         'up': 'up',
         'upward': 'up',
         'upwards': 'up',
@@ -174,10 +176,10 @@ class MoveCSR(CSR):
         'steps': 'pixel',
         'pixel': 'pixel',
         'pixels': 'pixel',
-        'degree': 'degree',
-        'degrees': 'degree',
-        'radian': 'radian',
-        'radians': 'radian',
+        'degree': 'deg',
+        'degrees': 'deg',
+        'radian': 'rad',
+        'radians': 'rad',
     }
     actions = {
         'move': 'move',
@@ -200,11 +202,13 @@ class MoveCSR(CSR):
         direction_words = [word for word in word.word_objs if word.text in self.directions]
         unit_words = [word for word in word.word_objs if word.text in self.units]
 
+        """
         debugp('MoveCSR: {}:'.format(repr(word.phrase)))
         debugp('\taction_words={}'.format(action_words))
         debugp('\tname_words={}'.format(name_words))
         debugp('\tdirection_words={}'.format(direction_words))
         debugp('\tunit_words={}'.format(unit_words))
+        """
 
         if len(action_words) > 1:
             debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
@@ -244,39 +248,32 @@ class MoveCSR(CSR):
         if action == 'move':
             if unit != 'pixel':
                 unit_errmsg = 'Incorrect unit {} for action {}.'.format(
-                    repr(unit_word.text), repr(action_word.text))
+                    repr(unit), repr(action))
                 errmsgs.append(unit_errmsg)
-            if direction in ['forward', 'backward']:
-                output = '{}.{}({})'.format(name, direction, amount)
+            if direction in ['fd', 'bk', 'up', 'down']:
+                output = [' '.join([direction, name, str(amount)])]
+            elif direction == 'left':
+                output = [' '.join(['shl', name, str(amount)])]
+            elif direction == 'right':
+                output = [' '.join(['shr', name, str(amount)])]
             else:
-                if amount > 0:
-                    amount_to_add = '+ ' + str(amount)
-                    amount_to_sub = '- ' + str(amount)
-                elif amount < 0:
-                    amount_to_add = '- ' + str(-amount)
-                    amount_to_sub = '+ ' + str(-amount)
-                else:
-                    amount_to_add = ''
-                    amount_to_sub = ''
-                if direction == 'up':
-                    output = '{name}.sety({name}.ycor{a2a})'.format(name=name, a2a=amount_to_add)
-                elif direction == 'down':
-                    output = '{name}.sety({name}.ycor{a2s})'.format(name=name, a2s=amount_to_sub)
-                if direction == 'right':
-                    output = '{name}.setx({name}.xcor{a2a})'.format(name=name, a2a=amount_to_add)
-                elif direction == 'left':
-                    output = '{name}.setx({name}.xcor{a2s})'.format(name=name, a2s=amount_to_sub)
-                else:
-                    dir_errmsg = 'Incorrect direction {} for this action {}.'.format(
-                        repr(direction_word.text), repr(action_word.text))
-                    errmsgs.append(direrrmsg)
+                dir_errmsg = 'Incorrect direction {} for action {}.'.format(
+                    repr(direction), repr(action))
+                errmsgs.append(direrrmsg)
         elif action == 'turn':
-            if unit in ['degree', 'radian']:
-                output = '{name}.{unit}s(); {name}.{direction}({amount})'.format(
-                    name=name, unit=unit, direction=direction, amount=amount)
+            if unit in ['deg', 'rad']:
+                output = [' '.join([unit, name])]
+                if direction == 'left':
+                    output.append(' '.join(['rol', name, str(amount)]))
+                elif direction == 'right':
+                    output.append(' '.join(['ror', name, str(amount)]))
+                else:
+                    dir_errmsg = 'Incorrect direction {} for action {}.'.format(
+                        repr(direction), repr(action))
+                    errmsgs.append(direrrmsg)
             else:
                 unit_errmsg = 'Incorrect unit {} for action {}.'.format(
-                    repr(unit_word.text), repr(action_word.text))
+                    repr(unit), repr(action))
                 errmsgs.append(unit_errmsg)
 
         if errmsgs:
@@ -287,14 +284,18 @@ class MoveCSR(CSR):
 terminal_CSRs = [MoveCSR()]
 nonterminal_CSRs = []
 
-def apply_csrs(word, csr_list):
+def get_csrs(word, csr_list):
     csr_params = {}
     for csr in csr_list:
         params = csr.detect(word)
         if params is not None:
             csr_params[csr] = params
+    return csr_params
+
+def apply_csrs(word, csr_list):
+    csr_params = get_csrs(word, csr_list)
     if len(csr_params) > 1:
-        raise CompileError(word.phrase, "Multiple CSRs required: " + [str(csr) for csr in csr_params])
+        raise CompileError(word.phrase, ["Multiple CSRs required: " + ', '.join([str(csr) for csr in csr_params])])
     elif len(csr_params) == 1:
         csr, params = list(csr_params.items())[0]
         output = csr.apply(word, params)
@@ -302,14 +303,86 @@ def apply_csrs(word, csr_list):
     else:
         return None
 
+from pprint import pprint
+
+def debug_csrs(text):
+    sentences = parse_text(text)
+    for s in sentences:
+        print(s.phrase)
+        csr_params = get_csrs(s, nonterminal_CSRs + terminal_CSRs)
+        pprint(csr_params)
+
 def convert(word):
-    return apply_csrs(word, nonterminal_CSRs) or apply_csrs(word, terminal_CSRs)
+    output = apply_csrs(word, nonterminal_CSRs) or apply_csrs(word, terminal_CSRs)
+    if output is None:
+        raise CompileError(word.phrase, ["Couldn't recognize sentence structure."])
+    else:
+        return output
+
+def text_to_turtle(gen, prompt='', promptfile=None, fatal=True):
+    while True:
+        if promptfile is not None and prompt:
+            promptfile.write(prompt)
+            promptfile.flush()
+        text = next(gen).strip()
+        if text:
+            try:
+                sentences = parse_text(text)
+                for s in sentences:
+                    try:
+                        output = convert(s)
+                        for line in output:
+                            yield line
+                    except CompileError as e:
+                        print(e)
+            except EdgeExistsError as e:
+                print("There was a problem interpreting your sentence:")
+                print("{}: {}".format(type(e).__name__, e))
+
+from inpr import Interpreter
+import argparse
 
 def main():
-    sentences = parse_text(input())
-    for s in sentences:
-        output = convert(s)
-        print(output)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('source', nargs='?',
+        help='Natural language source to interpret. Open interactive shell if not specified.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-c', metavar='object_file', dest='object_file',
+        help='Compile source to object code and store in this file.')
+    group.add_argument('-d', '--debug', action='store_true', default=False,
+        help='Debugging: Detect CSRs and report params.')
+    args = parser.parse_args()
+
+    if args.debug:
+        if args.source is not None:
+            print("Error: Source file should not be specified while debugging", file=sys.stderr)
+        else:
+            try:
+                while True:
+                    text = input('debug> ').strip()
+                    if text:
+                        debug_csrs(text)
+            except EOFError:
+                pass
+    elif args.object_file is not None:
+        if args.source is None:
+            print("Error: Source file not specified.", file=sys.stderr)
+        else:
+            with open(args.source) as sobj:
+                with open(args.object_file, 'w') as oobj:
+                    for line in text_to_turtle(sobj):
+                        print(line, file=oobj)
+    else:
+        if args.source is None:
+            tt = text_to_turtle(sys.stdin, '>>> ', sys.stdout)
+            inpr = Interpreter(tt, sys.stdout)
+            inpr.run()
+            print()
+        else:
+            with open(args.source) as sobj:
+                tt = text_to_turtle(sobj)
+                inpr = Interpreter(tt, sys.stdout)
+                inpr.run()
 
 if __name__ == '__main__':
     main()
