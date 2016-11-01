@@ -364,6 +364,7 @@ def main():
                         debug_csrs(text)
             except EOFError:
                 pass
+            print()
     elif args.object_file is not None:
         if args.source is None:
             print("Error: Source file not specified.", file=sys.stderr)
