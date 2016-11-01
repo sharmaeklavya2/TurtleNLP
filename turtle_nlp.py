@@ -5,7 +5,7 @@ import json
 import sys
 from collections import OrderedDict, defaultdict
 
-BASE_URL = 'http://localhost:9000/'
+DEFAULT_BASE_URL = 'http://localhost:9000/'
 
 def debugp(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -80,11 +80,11 @@ def find_phrase(word):
     word.word_objs = left_word_objs + [word] + right_word_objs
     word.phrase = ' '.join([w.text for w in word.word_objs])
 
-def parse_text(text):
+def parse_text(text, server_url):
 
     params = {'properties': "{'annotators': 'pos,depparse', 'outputFormat': 'json'}"}
 
-    r = requests.post(BASE_URL, params=params, data=text)
+    r = requests.post(server_url, params=params, data=text)
     r.raise_for_status()
 
 #   debugp(json.dumps(r.json(), indent=2))
@@ -341,8 +341,8 @@ def apply_csrs(word, csr_list):
 
 from pprint import pprint
 
-def debug_csrs(text):
-    sentences = parse_text(text)
+def debug_csrs(text, server_url):
+    sentences = parse_text(text, server_url)
     for s in sentences:
         print_preorder(s)
         csr_params = get_csrs(s, nonterminal_CSRs + terminal_CSRs)
@@ -355,14 +355,14 @@ def convert(word):
     else:
         return output
 
-def text_to_turtle(gen, prompt='', promptfile=None, fatal=True):
+def text_to_turtle(gen, server_url, prompt='', promptfile=None, fatal=True):
     while True:
         if promptfile is not None and prompt:
             promptfile.write(prompt)
             promptfile.flush()
         text = next(gen).strip()
         if text:
-            sentences = parse_text(text)
+            sentences = parse_text(text, server_url)
             for s in sentences:
                 try:
                     output = convert(s)
@@ -383,6 +383,8 @@ def main():
         help='Compile source to object code and store in this file.')
     group.add_argument('-d', '--debug', action='store_true', default=False,
         help='Debugging: Detect CSRs and report params.')
+    parser.add_argument('--server', default=DEFAULT_BASE_URL,
+        help='URL of CoreNLP server to connect to.')
     args = parser.parse_args()
 
     if args.debug:
@@ -393,7 +395,7 @@ def main():
                 while True:
                     text = input('debug> ').strip()
                     if text:
-                        debug_csrs(text)
+                        debug_csrs(text, args.server)
             except EOFError:
                 pass
             print()
@@ -403,17 +405,17 @@ def main():
         else:
             with open(args.source) as sobj:
                 with open(args.object_file, 'w') as oobj:
-                    for line in text_to_turtle(sobj):
+                    for line in text_to_turtle(sobj, args.server):
                         print(line, file=oobj)
     else:
         if args.source is None:
-            tt = text_to_turtle(sys.stdin, '>>> ', sys.stdout)
+            tt = text_to_turtle(sys.stdin, args.server, '>>> ', sys.stdout)
             inpr = Interpreter(tt, sys.stdout)
             inpr.run()
             print()
         else:
             with open(args.source) as sobj:
-                tt = text_to_turtle(sobj)
+                tt = text_to_turtle(sobj, args.server)
                 inpr = Interpreter(tt, sys.stdout)
                 inpr.run()
 
