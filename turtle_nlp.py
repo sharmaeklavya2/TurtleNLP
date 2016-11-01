@@ -3,15 +3,12 @@
 import requests
 import json
 import sys
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 BASE_URL = 'http://localhost:9000/'
 
 def debugp(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
-
-class EdgeFollowError(KeyError): pass
-class EdgeExistsError(Exception): pass
 
 class CompileError(Exception):
 
@@ -34,7 +31,7 @@ class Word:
         self.text = text
         self.word_no = word_no
         self.pos = pos
-        self.edges = {} # keys are edge labels, values are words pointed by edges
+        self.edges = defaultdict(list) # keys are edge labels, values are words pointed by edges
         self.word_strs = set()  # type: Set[str] # set of words in phrase
         self.word_objs = [] # type: List[Word] # ordered list of words in phrase
 
@@ -45,35 +42,34 @@ class Word:
 
     def add_edge(self, edge_type, word):
         # type: (str, Word) -> None
-        if edge_type in self.edges:
-            raise EdgeExistsError('edge type {} is already present in word {}.'.format(
-                repr(edge_type), repr(self.text)))
-        else:
-            self.edges[edge_type] = word
+            self.edges[edge_type].append(word)
 
     def get(self, edge_seq, throw=True):
-        # type: (Iterable[str]) -> Word
-        word = self
+        # type: (Iterable[str]) -> List[Word]
+        wordlist = [self]
         for edge in edge_seq:
-            try:
-                word = word.edges[edge]
-            except KeyError:
-                if throw:
-                    raise EdgeFollowError('{}.get({}) failed'.format(self, edge_seq))
-                else:
-                    return None
-        return word
+            wordlist = sum([word.edges[edge] for word in wordlist], [])
+        return wordlist
+
+    def edge_iter(self):
+        for k, vlist in self.edges.items():
+            for v in vlist:
+                yield (k, v)
+    def children_iter(self):
+        for vlist in self.edges.values():
+            for v in vlist:
+                yield v
 
 def print_preorder(word, edge_type='root', indent=0, file=sys.stdout):
     print('{}{}: {}, {}'.format('  '*indent, edge_type, repr(word.text), repr(word.phrase)), file=file)
-    for edge_type2, word2 in sorted(word.edges.items(), key=(lambda x: x[1].word_no)):
+    for edge_type2, word2 in sorted(word.edge_iter(), key=(lambda x: x[1].word_no)):
         print_preorder(word2, edge_type2, indent + 1)
 
 def find_phrase(word):
     word.word_strs = {word.text}
     left_word_objs = []
     right_word_objs = []
-    sorted_words = sorted(word.edges.values(), key=(lambda x: x.word_no))
+    sorted_words = sorted(word.children_iter(), key=(lambda x: x.word_no))
     for word2 in sorted_words:
         find_phrase(word2)
         if word2.word_no < word.word_no:
@@ -90,6 +86,8 @@ def parse_text(text):
 
     r = requests.post(BASE_URL, params=params, data=text)
     r.raise_for_status()
+
+#   debugp(json.dumps(r.json(), indent=2))
 
     return [parse_sentence(sentence, text) for sentence in r.json()['sentences']]
 
@@ -141,6 +139,27 @@ class CSR:
         Raise a CompilerError exception with error messages for the user if needed.
         """
         pass
+
+def get_names(dobj_word, errmsgs):
+    name_words = []
+    if 'cc' in dobj_word.edges and 'conj' in dobj_word.edges:
+        if [w.text for w in dobj_word.edges['cc']] != ['and']:
+            errmsgs.append("Turtle names must be connected by 'and'.")
+    and_names = dobj_word.edges['conj'] + [dobj_word]
+    final_names = []
+    for name in and_names:
+        if name.pos == 'NNP' or name.text in ('turtle', 'everyone'):
+            final_names.append(name)
+        elif 'compound' in name.edges:
+            compound_edges = name.edges['compound']
+            if len(compound_edges) == 1 and compound_edges[0].pos == 'NNP':
+                final_names.append(compound_edges[0])
+                # This is a workaround for a bug where CoreNLP makes measurement unit
+                # a direct object and the actual direct object is connected to the
+                # measurement unit by a 'compound' edge.
+        else:
+            errmsgs.append('{} is not a valid name'.format(name.text))
+    return final_names
 
 class MoveCSR(CSR):
 
@@ -198,7 +217,7 @@ class MoveCSR(CSR):
         """
         action_words = [word for word in word.word_objs
             if word.text.lower() in self.actions and word.pos == 'VB']
-        name_words = [word for word in word.word_objs if word.pos == 'NNP']
+        proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
         direction_words = [word for word in word.word_objs if word.text in self.directions]
         unit_words = [word for word in word.word_objs if word.text in self.units]
 
@@ -213,24 +232,34 @@ class MoveCSR(CSR):
         if len(action_words) > 1:
             debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
 
-        if not (len(action_words) == 1 and len(name_words) == 1 and len(direction_words) == 1 and len(unit_words) == 1):
+        if not (len(action_words) == 1 and len(direction_words) == 1 and len(unit_words) == 1):
             return None
 
         action_word = action_words[0]
-        name_word = name_words[0]
         direction_word = direction_words[0]
         unit_word = unit_words[0]
 
         params = {}
+        params["action"] = self.actions[action_word.text.lower()]
+        params["unit"] = self.units[unit_word.text]
+        params["direction"] = self.directions[direction_word.text]
         try:
-            params["action"] = self.actions[action_word.text.lower()]
-            params["unit"] = self.units[unit_word.text]
-            params["direction"] = self.directions[direction_word.text]
-            params["name"] = name_word.text.lower()
-            params["amount"] = unit_word.get(['nummod']).text
-            return params
-        except EdgeFollowError:
+            params["amount"] = unit_word.get(['nummod'])[0].text
+        except IndexError:
             return None
+
+        errmsgs = []
+        dobj_words = action_word.get(['dobj'])
+        if len(dobj_words) == 0:
+            raise CompileError(word.phrase, ["No direct object found"])
+        elif len(dobj_words) > 1:
+            errmsgs.append("Multiple direct objects not expected.")
+        name_words = get_names(dobj_words[0], errmsgs)
+        params["names"] = [name_word.text.lower() for name_word in name_words]
+
+        if errmsgs:
+            raise CompileError(word.phrase, errmsgs)
+        return params
 
     def apply(self, word, params, env=None):
         raw_amount = params["amount"]
@@ -242,7 +271,7 @@ class MoveCSR(CSR):
         action = params["action"]
         unit = params["unit"]
         direction = params["direction"]
-        name = params["name"]
+        names = params["names"]
 
         errmsgs = []
         if action == 'move':
@@ -251,22 +280,22 @@ class MoveCSR(CSR):
                     repr(unit), repr(action))
                 errmsgs.append(unit_errmsg)
             if direction in ['fd', 'bk', 'up', 'down']:
-                output = [' '.join([direction, name, str(amount)])]
+                output = [' '.join([direction, name, str(amount)]) for name in names]
             elif direction == 'left':
-                output = [' '.join(['shl', name, str(amount)])]
+                output = [' '.join(['shl', name, str(amount)]) for name in names]
             elif direction == 'right':
-                output = [' '.join(['shr', name, str(amount)])]
+                output = [' '.join(['shr', name, str(amount)]) for name in names]
             else:
                 dir_errmsg = 'Incorrect direction {} for action {}.'.format(
                     repr(direction), repr(action))
                 errmsgs.append(direrrmsg)
         elif action == 'turn':
             if unit in ['deg', 'rad']:
-                output = [' '.join([unit, name])]
+                output = [' '.join([unit, name]) for name in names]
                 if direction == 'left':
-                    output.append(' '.join(['rol', name, str(amount)]))
+                    output += [' '.join(['rol', name, str(amount)]) for name in names]
                 elif direction == 'right':
-                    output.append(' '.join(['ror', name, str(amount)]))
+                    output += [' '.join(['ror', name, str(amount)]) for name in names]
                 else:
                     dir_errmsg = 'Incorrect direction {} for action {}.'.format(
                         repr(direction), repr(action))
@@ -308,7 +337,7 @@ from pprint import pprint
 def debug_csrs(text):
     sentences = parse_text(text)
     for s in sentences:
-        print(s.phrase)
+        print_preorder(s)
         csr_params = get_csrs(s, nonterminal_CSRs + terminal_CSRs)
         pprint(csr_params)
 
@@ -326,18 +355,14 @@ def text_to_turtle(gen, prompt='', promptfile=None, fatal=True):
             promptfile.flush()
         text = next(gen).strip()
         if text:
-            try:
-                sentences = parse_text(text)
-                for s in sentences:
-                    try:
-                        output = convert(s)
-                        for line in output:
-                            yield line
-                    except CompileError as e:
-                        print(e)
-            except EdgeExistsError as e:
-                print("There was a problem interpreting your sentence:")
-                print("{}: {}".format(type(e).__name__, e))
+            sentences = parse_text(text)
+            for s in sentences:
+                try:
+                    output = convert(s)
+                    for line in output:
+                        yield line
+                except CompileError as e:
+                    print(e)
 
 from inpr import Interpreter
 import argparse
