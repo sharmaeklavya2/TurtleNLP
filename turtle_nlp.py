@@ -233,23 +233,29 @@ class MoveCSR(CSR):
         if len(action_words) > 1:
             debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
 
-        if not (len(action_words) == 1 and len(direction_words) == 1 and len(unit_words) == 1):
+        if not (len(action_words) == 1 and len(unit_words) == 1):
             return None
 
         action_word = action_words[0]
-        direction_word = direction_words[0]
         unit_word = unit_words[0]
 
         params = {}
+        errmsgs = []
         params["action"] = self.actions[action_word.text.lower()]
         params["unit"] = self.units[unit_word.text]
-        params["direction"] = self.directions[direction_word.text]
+
         try:
             params["amount"] = unit_word.get(['nummod'])[0].text
         except IndexError:
             return None
 
-        errmsgs = []
+        if len(direction_words) == 0:
+            errmsgs.append("Movement direction not specified.")
+        elif len(direction_words) > 1:
+            errmsgs.append("Too many directions have been specified.")
+        else:
+            params["direction"] = self.directions[direction_words[0].text]
+
         dobj_words = action_word.get(['dobj'])
         if len(dobj_words) == 0:
             raise CompileError(word.phrase, ["No direct object found"])
