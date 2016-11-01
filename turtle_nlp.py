@@ -183,6 +183,7 @@ class MoveCSR(CSR):
         'leftward': 'left',
         'leftwards': 'left',
         'anticlockwise': 'left',
+        'counterclockwise': 'left',
         'right': 'right',
         'rightward': 'right',
         'rightwards': 'right',
