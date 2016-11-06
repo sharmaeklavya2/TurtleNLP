@@ -44,7 +44,7 @@ class Word:
         # type: (str, Word) -> None
             self.edges[edge_type].append(word)
 
-    def get(self, edge_seq, throw=True):
+    def get(self, edge_seq):
         # type: (Iterable[str]) -> List[Word]
         wordlist = [self]
         for edge in edge_seq:
@@ -135,12 +135,16 @@ class CSR:
 
     def apply(self, word, params, env=None):
         """
-        Output python code for this CSR for the phrase represented by word.
+        Output turtle code for this CSR for the phrase represented by word.
         Raise a CompilerError exception with error messages for the user if needed.
         """
         pass
 
 def get_names(dobj_word, errmsgs):
+
+    def is_name_word(x):
+        return x.pos == 'NNP' or x.text in ('turtle', 'everyone')
+
     name_words = []
     if 'cc' in dobj_word.edges and 'conj' in dobj_word.edges:
         if [w.text for w in dobj_word.edges['cc']] != ['and']:
@@ -148,11 +152,11 @@ def get_names(dobj_word, errmsgs):
     and_names = dobj_word.edges['conj'] + [dobj_word]
     final_names = []
     for name in and_names:
-        if name.pos == 'NNP' or name.text in ('turtle', 'everyone'):
+        if is_name_word(name):
             final_names.append(name)
         elif 'compound' in name.edges:
             compound_edges = name.edges['compound']
-            if len(compound_edges) == 1 and compound_edges[0].pos == 'NNP':
+            if len(compound_edges) == 1 and is_name_word(compound_edges[0]):
                 final_names.append(compound_edges[0])
                 # This is a workaround for a bug where CoreNLP makes measurement unit
                 # a direct object and the actual direct object is connected to the
@@ -331,7 +335,7 @@ def get_csrs(word, csr_list):
 def apply_csrs(word, csr_list):
     csr_params = get_csrs(word, csr_list)
     if len(csr_params) > 1:
-        raise CompileError(word.phrase, ["Multiple CSRs required: " + ', '.join([str(csr) for csr in csr_params])])
+        raise CompileError(word.phrase, ["Multiple CSRs detected: " + ', '.join([str(csr) for csr in csr_params])])
     elif len(csr_params) == 1:
         csr, params = list(csr_params.items())[0]
         output = csr.apply(word, params)
