@@ -4,6 +4,7 @@ import requests
 import json
 import sys
 from collections import OrderedDict, defaultdict
+import itertools
 
 DEFAULT_BASE_URL = 'http://localhost:9000/'
 
@@ -48,7 +49,7 @@ class Word:
         # type: (Iterable[str]) -> List[Word]
         wordlist = [self]
         for edge in edge_seq:
-            wordlist = sum([word.edges[edge] for word in wordlist], [])
+            wordlist = list(itertools.chain.from_iterable((word.edges[edge] for word in wordlist)))
         return wordlist
 
     def edge_iter(self):
