@@ -360,7 +360,8 @@ def convert(word):
     else:
         return output
 
-def text_to_turtle(gen, server_url, prompt='', promptfile=None, fatal=True):
+def text_to_turtle(gen, server_url, prompt='', promptfile=None):
+    gen = iter(gen)
     while True:
         if promptfile is not None and prompt:
             promptfile.write(prompt)
@@ -374,7 +375,7 @@ def text_to_turtle(gen, server_url, prompt='', promptfile=None, fatal=True):
                     for line in output:
                         yield line
                 except CompileError as e:
-                    print(e)
+                    print(e, file=sys.stderr)
 
 from inpr import Interpreter
 import argparse
