@@ -11,16 +11,74 @@ DEFAULT_BASE_URL = 'http://localhost:9000/'
 def debugp(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-class CompileError(Exception):
+class CompileError:
 
-    def __init__(self, phrase, messages):
-        self.phrase = phrase
-        self.messages = messages
-        self.message = 'Error in phrase: {}\n\t{}'.format(
-            repr(self.phrase), '\n\t'.join([m for m in self.messages]))
+    def __init__(self, word, errcode=''):
+        self.errcode = errcode or 'ERR'
+        self.word = word
+        self.message = 'An error occured.'
+
+    def __repr__(self):
+        return 'CompileError({}, {}, {})'.format(repr(self.errcode), repr(self.phrase), repr(self.message))
 
     def __str__(self):
         return self.message
+
+class CEList(Exception):
+    errors = ()
+
+    def __init__(self, errors):
+        self.errors = errors
+        self.errcodes = [error.errcode for error in errors]
+        errors_by_word_no = defaultdict(list)
+        for error in errors:
+            errors_by_word_no[error.word.word_no].append(error)
+        lines = []
+        for word_no, error_list in sorted(errors_by_word_no.items(), key=(lambda x: x[0])):
+            lines.append('Error in phrase: ' + error_list[0].word.phrase)
+            for error in error_list:
+                lines.append('\t{}: {}'.format(error.errcode, error.message))
+        self.message = '\n'.join(lines)
+
+    def __str__(self):
+        return self.message
+
+class NoCSRCE(CompileError):
+    def __init__(self, word, errcode=''):
+        CompileError.__init__(self, word, errcode or 'NOCSR')
+        self.message = 'No CSR was detected.'
+
+class ManyCSRCE(CompileError):
+    def __init__(self, word, errcode='', csr_list=()):
+        CompileError.__init__(self, word, errcode or 'MANYCSR')
+        self.message = 'Multiple CSRs detected: {}.'.format(csr_list)
+        self.csr_list = csr_list
+
+class MissingDataCE(CompileError):
+    def __init__(self, word, errcode='', param=''):
+        CompileError.__init__(self, word, errcode or 'NODATA')
+        self.message = 'No value specified for {}.'.format(repr(param))
+        self.param = param
+
+class BadDataCE(CompileError):
+    def __init__(self, word, errcode='', param='', value=''):
+        CompileError.__init__(self, word, errcode or 'BADDATA')
+        self.message = '{} is an invalid value for {}.'.format(repr(value), repr(param))
+        self.param = param
+        self.value = value
+
+class BadCCCE(CompileError):
+    def __init__(self, word, errcode='', objtype='', cc=''):
+        CompileError.__init__(self, word, errcode or 'BADCC')
+        self.message = '{} should be connected by {}.'.format(objtype, repr(cc))
+        self.objtype = objtype
+        self.cc = cc
+
+class TooManyValuesCE(CompileError):
+    def __init__(self, word, errcode='', param=''):
+        CompileError.__init__(self, word, errcode or 'MANYVAL')
+        self.message = 'Too many values specified for {}.'.format(repr(param))
+        self.param = param
 
 class Word:
     text = ''
@@ -141,7 +199,7 @@ class CSR:
         """
         pass
 
-def get_names(dobj_word, errmsgs):
+def get_names(dobj_word, errlist):
 
     def is_name_word(x):
         return x.pos == 'NNP' or x.text in ('turtle', 'everyone')
@@ -149,7 +207,7 @@ def get_names(dobj_word, errmsgs):
     name_words = []
     if 'cc' in dobj_word.edges and 'conj' in dobj_word.edges:
         if [w.text for w in dobj_word.edges['cc']] != ['and']:
-            errmsgs.append("Turtle names must be connected by 'and'.")
+            errlist.append(BadCCCE(dobj_word, objtype='Turtle names', cc='and'))
     and_names = dobj_word.edges['conj'] + [dobj_word]
     final_names = []
     for name in and_names:
@@ -163,7 +221,7 @@ def get_names(dobj_word, errmsgs):
                 # a direct object and the actual direct object is connected to the
                 # measurement unit by a 'compound' edge.
         else:
-            errmsgs.append('{} is not a valid name'.format(name.text))
+            errlist.append(BadDataCE(dobj_word, param='name', value=name.text))
     return final_names
 
 class MoveCSR(CSR):
@@ -245,7 +303,7 @@ class MoveCSR(CSR):
         unit_word = unit_words[0]
 
         params = {}
-        errmsgs = []
+        errlist = []
         params["action"] = self.actions[action_word.text.lower()]
         params["unit"] = self.units[unit_word.text]
 
@@ -255,22 +313,22 @@ class MoveCSR(CSR):
             return None
 
         if len(direction_words) == 0:
-            errmsgs.append("Movement direction not specified.")
+            errlist.append(MissingDataCE(word, param='direction'))
         elif len(direction_words) > 1:
-            errmsgs.append("Too many directions have been specified.")
+            errlist.append(TooManyValues(word, param='direction'))
         else:
             params["direction"] = self.directions[direction_words[0].text]
 
         dobj_words = action_word.get(['dobj'])
         if len(dobj_words) == 0:
-            raise CompileError(word.phrase, ["No direct object found"])
+            raise CEList([MissingDataCE(word, param='direct object')])
         elif len(dobj_words) > 1:
-            errmsgs.append("Multiple direct objects not expected.")
-        name_words = get_names(dobj_words[0], errmsgs)
+            errlist.append(TooManyValuesCE(word, param='direct object'))
+        name_words = get_names(dobj_words[0], errlist)
         params["names"] = [name_word.text.lower() for name_word in name_words]
 
-        if errmsgs:
-            raise CompileError(word.phrase, errmsgs)
+        if errlist:
+            raise CEList(errlist)
         return params
 
     def apply(self, word, params, env=None):
@@ -278,19 +336,17 @@ class MoveCSR(CSR):
         try:
             amount = float(raw_amount)
         except ValueError:
-            raise CompilerError(word.phrase, ['{} is not a valid number.'.format(repr(raw_amount))])
+            raise CEList([BadDataCE(word, param='number', value=raw_amount)])
 
         action = params["action"]
         unit = params["unit"]
         direction = params["direction"]
         names = params["names"]
 
-        errmsgs = []
+        errlist = []
         if action == 'move':
             if unit != 'pixel':
-                unit_errmsg = 'Incorrect unit {} for action {}.'.format(
-                    repr(unit), repr(action))
-                errmsgs.append(unit_errmsg)
+                errlist.append(BadDataCE(word, param='movement unit', value=unit))
             if direction in ['fd', 'bk', 'up', 'down']:
                 output = [' '.join([direction, name, str(amount)]) for name in names]
             elif direction == 'left':
@@ -298,9 +354,7 @@ class MoveCSR(CSR):
             elif direction == 'right':
                 output = [' '.join(['shr', name, str(amount)]) for name in names]
             else:
-                dir_errmsg = 'Incorrect direction {} for action {}.'.format(
-                    repr(direction), repr(action))
-                errmsgs.append(direrrmsg)
+                errlist.append(BadDataCE(word, param='movement direction', value=direction))
         elif action == 'turn':
             if unit in ['deg', 'rad']:
                 output = [' '.join([unit, name]) for name in names]
@@ -309,16 +363,12 @@ class MoveCSR(CSR):
                 elif direction == 'right':
                     output += [' '.join(['ror', name, str(amount)]) for name in names]
                 else:
-                    dir_errmsg = 'Incorrect direction {} for action {}.'.format(
-                        repr(direction), repr(action))
-                    errmsgs.append(direrrmsg)
+                    errlist.append(BadDataCE(word, param='rotational direction', value=direction))
             else:
-                unit_errmsg = 'Incorrect unit {} for action {}.'.format(
-                    repr(unit), repr(action))
-                errmsgs.append(unit_errmsg)
+                errlist.append(BadDataCE(word, param='rotational unit', value=unit))
 
-        if errmsgs:
-            raise CompileError(word.phrase, errmsgs)
+        if errlist:
+            raise CEList(errlist)
         else:
             return output
 
@@ -336,7 +386,7 @@ def get_csrs(word, csr_list):
 def apply_csrs(word, csr_list):
     csr_params = get_csrs(word, csr_list)
     if len(csr_params) > 1:
-        raise CompileError(word.phrase, ["Multiple CSRs detected: " + ', '.join([str(csr) for csr in csr_params])])
+        raise CEList([ManyCSRCE(word, list(csr_params.keys()))])
     elif len(csr_params) == 1:
         csr, params = list(csr_params.items())[0]
         output = csr.apply(word, params)
@@ -356,7 +406,7 @@ def debug_csrs(text, server_url):
 def convert(word):
     output = apply_csrs(word, nonterminal_CSRs) or apply_csrs(word, terminal_CSRs)
     if output is None:
-        raise CompileError(word.phrase, ["Couldn't recognize sentence structure."])
+        raise CEList([NoCSRCE(word)])
     else:
         return output
 
@@ -378,7 +428,7 @@ def text_to_turtle(gen, server_url, prompt='', promptfile=None):
                     output = convert(s)
                     for line in output:
                         yield line
-                except CompileError as e:
+                except CEList as e:
                     print(e, file=sys.stderr)
 
 from inpr import Interpreter
