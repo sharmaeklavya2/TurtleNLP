@@ -360,6 +360,10 @@ def convert(word):
     else:
         return output
 
+def convert_text(text, server_url):
+    sentences = parse_text(text, server_url)
+    return list(itertools.chain.from_iterable((convert(s) for s in sentences)))
+
 def text_to_turtle(gen, server_url, prompt='', promptfile=None):
     gen = iter(gen)
     while True:
