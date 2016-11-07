@@ -80,6 +80,8 @@ def get_stats(correct, wrong, indent):
     total = correct + wrong
     correct_percent = str(100 * correct / total)[:5]
     wrong_percent = str(100 * wrong / total)[:5]
+    correct = str(correct)[:5]
+    wrong = str(wrong)[:5]
     indent_str = '\t' * indent
     return indent_str + result_format.format(correct, correct_percent, wrong, wrong_percent, total)
     
@@ -91,10 +93,11 @@ def run_all_tests(path, print_failures, server_url):
     for fpath in fpaths:
         with open(fpath) as fobj:
             test = Test(fpath, json.load(fobj))
-        print(test.fpath)
+        print('{}: {}'.format(test.fpath, test.weight))
         correct, wrong = run_test(test, print_failures, server_url)
-        tot_correct += correct
-        tot_wrong += wrong
+        total = correct + wrong
+        tot_correct += correct * test.weight / total
+        tot_wrong += wrong * test.weight / total
         if wrong:
             print(get_stats(correct, wrong, 1))
     print('\n' + get_stats(tot_correct, tot_wrong, 0))
