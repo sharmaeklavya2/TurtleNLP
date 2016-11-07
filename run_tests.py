@@ -110,7 +110,11 @@ def run_test(test, print_failures, server_url):
     for text in iter_sentences(test.text, test.params):
         has_errors, output = execute_sentence(text, server_url)
         if has_errors == test.has_errors:
-            if output == test.output:
+            if has_errors:
+                result = sorted(output) == sorted(test.output)
+            else:
+                result = output == test.output
+            if result:
                 correct += 1
             else:
                 wrong += 1
