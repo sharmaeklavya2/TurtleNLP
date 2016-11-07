@@ -8,6 +8,7 @@ import json
 import os
 import itertools
 import argparse
+from collections import defaultdict
 
 from turtle_nlp import CEList
 import turtle_nlp
@@ -35,7 +36,7 @@ class Test:
     text = ''
     output = [] # type: List[str] # stores result or errors
     has_errors = False
-    params = {} # type: Dict[str, List[str]]
+    params = {} # type: Dict[str, Dict[str, str]]
     weight = 1
 
     def from_dict(self, fpath, d):
@@ -43,7 +44,17 @@ class Test:
         self.fpath = fpath
         self.name = d.get('name', os.path.split(fpath)[1])
         self.text = d['text']
-        self.params = d.get('params', {})
+        paramsl = d.get('params', {})
+        if 'result' not in d and 'paramsd' in d:
+            raise Exception("'paramsd' present without 'result' in {}: {}".format(fpath, self.name))
+        paramsd = d.get('paramsd', {})
+        self.params = defaultdict(dict)
+        for template_param, values_list in paramsl.items():
+            for value in values_list:
+                self.params[template_param][value] = value.lower()
+        for template_param, values_dict in paramsd.items():
+            for key, value in values_dict.items():
+                self.params[template_param][key] = value
         self.weight = d.get('weight', 1)
         if 'results' in d:
             raise Exception("Change 'results' to 'result' in {}: {}".format(fpath, self.name))
@@ -88,13 +99,18 @@ def run_all_tests(path, print_failures, server_url):
             print(get_stats(correct, wrong, 1))
     print('\n' + get_stats(tot_correct, tot_wrong, 0))
 
-def iter_sentences(template, params):
+def iter_text_output(text_template, output_template, params):
     # type: (str, Dict[str, List[str]]) -> Generator[str, None, None]
-    values_instances = itertools.product(*(params.values()))
+    params_as_list = list(params.items())
+    template_params = [x[0] for x in params_as_list]
+    template_dicts = [list(x[1].items()) for x in params_as_list]
+    values_instances = itertools.product(*template_dicts)
     for values_instance in values_instances:
-        d2 = {k: v for k, v in zip(params.keys(), values_instance)}
-        text = template.format(**d2)
-        yield text
+        text_replacements = {k: v for k, v in zip(template_params, [x[0] for x in values_instance])}
+        output_replacements = {k: v for k, v in zip(template_params, [x[1] for x in values_instance])}
+        text = text_template.format(**text_replacements)
+        output = [instr_template.format(**output_replacements) for instr_template in output_template]
+        yield (text, output)
 
 def execute_sentence(text, server_url):
     # type: (str, str) -> Tuple[bool, List[str]]
@@ -107,26 +123,26 @@ def run_test(test, print_failures, server_url):
     # type: (Test, bool, str) -> (int, int)
     correct = 0
     wrong = 0
-    for text in iter_sentences(test.text, test.params):
-        has_errors, output = execute_sentence(text, server_url)
+    for text, output in iter_text_output(test.text, test.output, test.params):
+        has_errors, nlp_output = execute_sentence(text, server_url)
         if has_errors == test.has_errors:
             if has_errors:
-                result = sorted(output) == sorted(test.output)
+                result = sorted(nlp_output) == sorted(output)
             else:
-                result = output == test.output
+                result = nlp_output == output
             if result:
                 correct += 1
             else:
                 wrong += 1
                 if print_failures:
                     print('\t' + text)
-                    print('\t\texpected:', test.output)
-                    print('\t\treceived:', output)
+                    print('\t\texpected:', output)
+                    print('\t\treceived:', nlp_output)
         elif has_errors:
             wrong += 1
             if print_failures:
                 print('\t' + text)
-                print('\t\tGot unexpected errors:', output)
+                print('\t\tGot unexpected errors:', nlp_output)
         else:
             wrong += 1
             if print_failures:
