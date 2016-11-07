@@ -1,9 +1,0 @@
-{
-    "text": "{action} Eklavya {direction} by 30 {unit}.",
-    "params": {
-        "action": ["Turn", "Rotate"],
-        "direction": ["anticlockwise", "left", "leftwards"],
-        "unit": ["degrees", "degree"]
-    },
-    "result": ["deg eklavya", "rol eklavya 30.0"]
-}

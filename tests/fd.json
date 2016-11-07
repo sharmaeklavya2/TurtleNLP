@@ -1,9 +1,0 @@
-{
-    "text": "Move Eklavya {direction} by 30 {unit}{plural}.",
-    "params": {
-        "direction": ["forward", "forwards", "ahead"],
-        "unit": ["unit", "pixel", "step"],
-        "plural": ["", "s"]
-    },
-    "result": ["fd eklavya 30.0"]
-}

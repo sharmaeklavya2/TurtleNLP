@@ -1,0 +1,23 @@
+{
+    "text": "{action} {object} 30 {unit}{plural} towards {direction}.",
+    "result": ["{unit} {object}", "{direction} {object} 30.0"],
+    "params": {
+        "action": ["Turn", "Rotate"],
+        "plural": ["", "s"]
+    },
+    "paramsd": {
+        "object": {
+            "Eklavya": "eklavya",
+            "the turtle": "turtle",
+            "everyone": "everyone"
+        },
+        "direction": {
+            "left": "rol",
+            "right": "ror"
+        },
+        "unit": {
+            "degree": "deg",
+            "radian": "rad"
+        }
+    }
+}

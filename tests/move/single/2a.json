@@ -1,0 +1,28 @@
+{
+    "text": "Move {object} 30 {unit} {direction}.",
+    "result": ["{direction} {object} 30.0"],
+    "weight": 0.5,
+    "params": {
+        "unit": ["units", "pixels", "steps"]
+    },
+    "paramsd": {
+        "object": {
+            "Eklavya": "eklavya",
+            "the turtle": "turtle",
+            "everyone": "everyone"
+        },
+        "direction": {
+            "forward": "fd",
+            "ahead": "fd",
+            "backward": "bk",
+            "up": "up",
+            "upward": "up",
+            "down": "down",
+            "downward": "down",
+            "left": "shl",
+            "leftward": "shl",
+            "right": "shr",
+            "rightward": "shr"
+        }
+    }
+}

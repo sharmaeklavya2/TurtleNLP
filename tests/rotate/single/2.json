@@ -1,0 +1,28 @@
+{
+    "text": "{action} {object} 30 {unit}{plural} {direction}.",
+    "result": ["{unit} {object}", "{direction} {object} 30.0"],
+    "params": {
+        "action": ["Turn", "Rotate"],
+        "plural": ["", "s"]
+    },
+    "paramsd": {
+        "object": {
+            "Eklavya": "eklavya",
+            "the turtle": "turtle",
+            "everyone": "everyone"
+        },
+        "direction": {
+            "counterclockwise": "rol",
+            "anticlockwise": "rol",
+            "left": "rol",
+            "leftwards": "rol",
+            "clockwise": "ror",
+            "right": "ror",
+            "rightwards": "ror"
+        },
+        "unit": {
+            "degree": "deg",
+            "radian": "rad"
+        }
+    }
+}
