@@ -266,7 +266,6 @@ class MoveCSR(CSR):
     }
     actions = {
         'move': 'move',
-        'shift': 'move',
         'turn': 'turn',
         'rotate': 'turn',
     }
