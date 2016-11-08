@@ -224,6 +224,91 @@ def get_names(dobj_word, errlist):
             errlist.append(BadDataCE(dobj_word, param='name', value=name.text))
     return final_names
 
+
+
+
+"""
+Tested : False
+Should work : True
+Updates coming : Yes. This is fairly simple one. Writing a one which would detect make manish and make a turtle nam...
+in the next commit.
+"""
+
+
+class MakeCSR(CSR):
+
+	def __str__(self):
+        return 'MoveCSR()'
+    def __repr__(self):
+        return str(self)
+
+    actions = {
+        'make': 'make',
+        'create': 'make',
+        'build': 'make',
+    }
+
+    def detect(self, word, env=None):
+    	action_words = [word for word in word.word_objs if word.text.lower() in self.actions and word.pos == 'VB']
+        proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
+        turtle_words = [word for word in word.word_objs if word.text.lower()=='turtle']
+
+    	action_word = action_words[0]
+        name_of_turtle = proper_nouns[0]
+        turtle_word = turtle_words[0]
+
+        params = {}
+        errmsgs = []
+        params["action"] = self.actions[action_word.text.lower()]
+		
+        if len(turtle_words) == 0:
+        	if action_word.get(['dobj'])[0].text != name_of_turtle:
+        		errmsgs.append("Your sentence is not in natural language.")
+        elif len(turtle_words) == 1:
+        	if turtle_word.get(['acl'])[0].get(['xcomp'])[0] != name_of_turtle: #Please check if syntax correct
+        		errmsgs.append("Your sentence is not in natural language.")
+
+
+        if len(proper_nouns) == 0:
+            errmsgs.append("Name of turtle not specified.")
+        elif len(proper_nouns) > 1:
+            errmsgs.append("More than one turtle name have been specified.")
+        else:
+            params["turtle_name"] = name_of_turtle.text.lower()
+
+        if errmsgs:
+            raise CompileError(word.phrase, errmsgs)
+        return params
+
+
+
+    def apply(self, word, params, env=None):
+        
+        action = params["action"]
+        turtle_name = params["turtle_name"]
+
+        errmsgs = []
+        if action == 'make':
+        	output = [' '.join([turtle_name,' = ', action])]
+        else:
+            dir_errmsg = 'Something seems fishy'
+            errmsgs.append(direrrmsg)
+        
+        if errmsgs:
+            raise CompileError(word.phrase, errmsgs)
+        else:
+            return output
+
+	
+
+
+
+
+
+
+
+
+
 class MoveCSR(CSR):
 
     def __str__(self):
