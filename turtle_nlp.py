@@ -505,24 +505,46 @@ class MoveCSR(CSR):
         else:
             return output
 
+def dfs_split_by_comma_dep(word):
+    dep_words = word.get(['dep'])
+    punct_words = word.get(['punct'])
+    if not (dep_words and punct_words):
+        return [word]
+    has_comma = any((x.text == ',' for x in punct_words))
+    if not has_comma:
+        return [word]
+
+    delete_edges(word, ['dep'])
+    parts = [word]
+    for word2 in dep_words:
+        parts += dfs_split_by_and(word2)
+    return parts
+
+def dfs_split_by_and(word):
+    conj_words = word.get(['conj'])
+    cc_words = word.get(['cc'])
+    if (conj_words and not cc_words) or (not conj_words and cc_words):
+        err = CompileError(word, errcode='CONJCC', message=errmsg)
+        err.message = "'conj' and 'cc' should either both be present or both be absent."
+        raise CEList([err])
+    if not (conj_words and cc_words):
+        return dfs_split_by_comma_dep(word)
+    for x in cc_words:
+        if x.text != 'and':
+            raise CEList([BadDataCE(word, param='cc', value=x.text)])
+
+    delete_edges(word, ['conj', 'cc'])
+    parts = [word]
+    for word2 in conj_words:
+        parts += dfs_split_by_and(word2)
+    return parts
+
 class AndCSR(CSR):
 
     def detect(self, word, env=None):
-        conj_words = word.get(['conj'])
-        cc_words = word.get(['cc'])
-        if (conj_words and not cc_words) or (not conj_words and cc_words):
-            err = CompileError(word, errcode='CONJCC', message=errmsg)
-            err.message = "'conj' and 'cc' should either both be present or both be absent."
-            raise CEList([err])
-        if not (conj_words and cc_words):
+        parts = dfs_split_by_and(word)
+        if len(parts) == 1:
             return None
-        for x in cc_words:
-            if x.text != 'and':
-                raise CEList([BadDataCE(word, param='cc', value=x.text)])
-
-        conj_words = word.get(['conj'])
-        delete_edges(word, ['conj', 'cc'])
-        parts = [word] + conj_words
 
         stack = []
         output = []
