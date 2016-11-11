@@ -531,7 +531,15 @@ class AndCSR(CSR):
                     except ValueError:
                         raise CEList([BadDataCE(word, param='loop repetitions', value=amount_str)])
                     stack.append(amount)
-                # TODO: Support writing once, twice, thrice
+                else:
+                    if 'once' in word.word_strs:
+                        stack.append(1)
+                    elif 'twice' in word.word_strs:
+                        stack.append(2)
+                    elif 'thrice' in word.word_strs:
+                        stack.append(3)
+                    else:
+                        raise CEList([MissingDataCE(word, param='loop repetitions')])
             else:
                 output.append(word)
 
