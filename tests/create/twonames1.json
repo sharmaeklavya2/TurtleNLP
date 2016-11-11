@@ -1,0 +1,7 @@
+{
+    "text": "{action} Manish and Eklavya.",
+    "result": ["create manish", "create eklavya"],
+    "params": {
+        "action": ["make", "create", "build", "spawn"]
+    }
+}

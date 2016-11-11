@@ -1,0 +1,7 @@
+{
+    "text": "{action} a turtle named Eklavya.",
+    "result": ["create eklavya"],
+    "params": {
+        "action": ["make", "create", "build", "spawn"]
+    }
+}

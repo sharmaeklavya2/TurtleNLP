@@ -1,0 +1,9 @@
+{
+    "text": "{action} {det}turtles {named}Manish and Eklavya.",
+    "result": ["create manish", "create eklavya"],
+    "params": {
+        "action": ["make", "create", "build", "spawn"],
+        "det": ["the ", ""],
+        "named": ["named ", ""]
+    }
+}

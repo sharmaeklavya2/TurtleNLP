@@ -1,0 +1,7 @@
+{
+    "text": "{action} Manish and Eklavya.",
+    "result": ["destroy manish", "destroy eklavya"],
+    "params": {
+        "action": ["destroy", "remove", "kill"]
+    }
+}

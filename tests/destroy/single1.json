@@ -1,0 +1,15 @@
+{
+    "text": "{action} {object}.",
+    "result": ["destroy {object}"],
+    "params": {
+        "action": ["destroy", "remove", "kill"]
+    },
+    "paramsd":
+    {
+        "object": {
+            "Eklavya": "eklavya",
+            "the turtle": "turtle",
+            "everyone": "everyone"
+        }
+    }
+}

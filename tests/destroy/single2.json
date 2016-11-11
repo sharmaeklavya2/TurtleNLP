@@ -1,0 +1,7 @@
+{
+    "text": "{action} the turtle named Eklavya.",
+    "result": ["destroy eklavya"],
+    "params": {
+        "action": ["destroy", "remove", "kill"]
+    }
+}

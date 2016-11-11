@@ -1,0 +1,9 @@
+{
+    "text": "{action} {det}turtles {named}Manish and Eklavya.",
+    "result": ["destroy manish", "destroy eklavya"],
+    "params": {
+        "action": ["destroy", "remove", "kill"],
+        "det": ["the ", ""],
+        "named": ["named ", ""]
+    }
+}
