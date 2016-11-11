@@ -199,16 +199,16 @@ class CSR:
         """
         pass
 
-def get_names(dobj_word, errlist):
+def get_names(dobj_word, include_others, errlist):
 
     def is_name_word(x):
-        return x.pos == 'NNP' or x.text in ('turtle', 'everyone')
+        return x.pos == 'NNP' or (include_others and x.text in ('turtle', 'everyone'))
 
     name_words = []
     if 'cc' in dobj_word.edges and 'conj' in dobj_word.edges:
         if [w.text for w in dobj_word.edges['cc']] != ['and']:
             errlist.append(BadCCCE(dobj_word, objtype='Turtle names', cc='and'))
-    and_names = dobj_word.edges['conj'] + [dobj_word]
+    and_names = [dobj_word] + dobj_word.edges['conj']
     final_names = []
     for name in and_names:
         if is_name_word(name):
@@ -223,6 +223,77 @@ def get_names(dobj_word, errlist):
         else:
             errlist.append(BadDataCE(dobj_word, param='name', value=name.text))
     return final_names
+
+class MakeCSR(CSR):
+
+    def __str__(self):
+        return 'MakeCSR()'
+    def __repr__(self):
+        return str(self)
+
+    actions = {
+        'make': 'create',
+        'create': 'create',
+        'build': 'create',
+        'spawn': 'create',
+        'destroy': 'destroy',
+        'remove': 'destroy',
+        'kill': 'destroy',
+    }
+
+    def detect(self, word, env=None):
+        """
+        Examples:
+        Make a turtle named Manish.
+        Make turtles named Manish and Eklavya.
+        Make Manish.
+        Make Manish and Eklavya.
+        Make turtles Manish and Eklavya.
+        """
+        action_words = [word for word in word.word_objs if word.text.lower() in self.actions and word.pos == 'VB']
+        proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
+
+        if len(action_words) > 1:
+            debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
+
+        if len(action_words) != 1:
+            return None
+
+        action_word = action_words[0]
+
+        params = {}
+        errlist = []
+        params["action"] = self.actions[action_word.text.lower()]
+
+        dobj_words = action_word.get(['dobj'])
+        if len(dobj_words) == 0:
+            raise CEList([MissingDataCE(word, param='direct object')])
+        elif len(dobj_words) > 1:
+            errlist.append(TooManyValuesCE(word, param='direct object'))
+        dobj_word = dobj_words[0]
+
+        if dobj_word.text in ('turtle', 'turtles'):
+            names_phrase_words = dobj_word.get(['acl', 'xcomp'])
+            if len(names_phrase_words) == 0:
+                raise CEList([MissingDataCE(dobj_word, param='names')])
+            elif len(names_phrase_words) > 1:
+                errlist.append(TooManyValuesCE(dobj_word, param='names'))
+            name_phrase_word = names_phrase_words[0]
+        else:
+            name_phrase_word = dobj_word
+
+        name_words = get_names(name_phrase_word, params["action"] != 'create', errlist)
+        params["names"] = [name_word.text.lower() for name_word in name_words]
+
+        if errlist:
+            raise CEList(errlist)
+        return params
+
+    def apply(self, word, params, env=None):
+        action = params["action"]
+        names = params["names"]
+        output = [' '.join([action, name]) for name in names]
+        return output
 
 class MoveCSR(CSR):
 
@@ -274,8 +345,7 @@ class MoveCSR(CSR):
         """
         A phrase is roughly a movement command if:
         1. It has the word 'move', 'turn', etc and that is a verb.
-        2. There is a proper noun in the phrase (which is the name of the turtle).
-        4. It has the word 'forward' or 'backward' or 'upward' etc.
+        2. It has the word 'forward' or 'backward' or 'upward' etc.
         3. It has the word 'units' or 'pixels' with a number adjoining it.
         """
         action_words = [word for word in word.word_objs
@@ -323,7 +393,7 @@ class MoveCSR(CSR):
             raise CEList([MissingDataCE(word, param='direct object')])
         elif len(dobj_words) > 1:
             errlist.append(TooManyValuesCE(word, param='direct object'))
-        name_words = get_names(dobj_words[0], errlist)
+        name_words = get_names(dobj_words[0], True, errlist)
         params["names"] = [name_word.text.lower() for name_word in name_words]
 
         if errlist:
@@ -371,7 +441,7 @@ class MoveCSR(CSR):
         else:
             return output
 
-terminal_CSRs = [MoveCSR()]
+terminal_CSRs = [MakeCSR(), MoveCSR()]
 nonterminal_CSRs = []
 
 def get_csrs(word, csr_list):
