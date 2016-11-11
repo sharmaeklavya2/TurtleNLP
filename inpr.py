@@ -21,6 +21,8 @@ opcodes = {
     'down': [str, float],
     'deg': [str],   # set angle measure to degrees for turtle x
     'rad': [str],   # set angle measure to radians for turtle x
+    'create': [str],    # create a new turtle
+    'destroy': [str],   # destroy a turtle
     # control commands
     'repeat': [int],    # repeat a code block x times
     'end': [],   # end of code block
