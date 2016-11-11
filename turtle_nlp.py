@@ -246,13 +246,15 @@ def get_names(dobj_word, include_others, errlist):
     for name in and_names:
         if is_name_word(name):
             final_names.append(name)
-        elif 'compound' in name.edges:
-            compound_edges = name.edges['compound']
-            if len(compound_edges) == 1 and is_name_word(compound_edges[0]):
-                final_names.append(compound_edges[0])
-                # This is a workaround for a bug where CoreNLP makes measurement unit
-                # a direct object and the actual direct object is connected to the
-                # measurement unit by a 'compound' edge.
+        elif any((x in name.edges for x in ['compound', 'nmod:npmod', 'nsubj'])):
+            indirect_edges = name.edges['compound'] + name.edges['nmod:npmod'] + name.edges['nsubj']
+            if len(indirect_edges) == 1 and is_name_word(indirect_edges[0]):
+                final_names.append(indirect_edges[0])
+                # This is a workaround for a bug where CoreNLP makes
+                # 1.  measurement unit a direct object and the actual direct object
+                #     is connected to it by a 'compound' edge.
+                # 2.  direction an 'xcomp' or 'ccomp' and the actual direct object
+                #     is connected to it by a 'nmod:npmod' or 'nsubj' edge.
         else:
             errlist.append(BadDataCE(dobj_word, param='name', value=name.text))
     return final_names
@@ -445,12 +447,17 @@ class MoveCSR(CSR):
         else:
             params["direction"] = self.directions[direction_words[0].text]
 
-        dobj_words = action_word.get(['dobj'])
+        dobj_words = (action_word.get(['dobj']) or action_word.get(['xcomp']) or
+            action_word.get(['advmod']) or action_word.get(['ccomp']))
+        # including 'xcomp' in dobj_words is a workaround for a bug in coreNLP
+        # where it marks the actual direct object as 'xcomp' or 'advmod' or 'ccomp'.
         if len(dobj_words) == 0:
             raise CEList([MissingDataCE(word, param='direct object')])
         elif len(dobj_words) > 1:
             errlist.append(TooManyValuesCE(word, param='direct object'))
         name_words = get_names(dobj_words[0], True, errlist)
+        if not name_words:
+            return None
         params["names"] = [name_word.text.lower() for name_word in name_words]
 
         if errlist:
