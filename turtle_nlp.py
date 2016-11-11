@@ -583,6 +583,8 @@ def main():
         help='Compile source to object code and store in this file.')
     group.add_argument('-d', '--debug', action='store_true', default=False,
         help='Debugging: Detect CSRs and report params.')
+    group.add_argument('-d2', '--debug2', action='store_true', default=False,
+        help='Debugging: View turtle output interactively.')
     parser.add_argument('--server', default=DEFAULT_BASE_URL,
         help='URL of CoreNLP server to connect to.')
     args = parser.parse_args()
@@ -596,6 +598,20 @@ def main():
                     text = input('debug> ').strip()
                     if text:
                         debug_csrs(text, args.server)
+            except EOFError:
+                pass
+            print()
+    elif args.debug2:
+        if args.source is not None:
+            print("Error: Source file should not be specified while debugging", file=sys.stderr)
+        else:
+            try:
+                while True:
+                    line = input('debug> ')
+                    if line:
+                        output = convert_text(line, args.server)
+                        for x in output:
+                            print(x)
             except EOFError:
                 pass
             print()
