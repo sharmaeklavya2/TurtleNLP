@@ -272,17 +272,44 @@ class MakeCSR(CSR):
             errlist.append(TooManyValuesCE(word, param='direct object'))
         dobj_word = dobj_words[0]
 
-        if dobj_word.text in ('turtle', 'turtles'):
-            names_phrase_words = dobj_word.get(['acl', 'xcomp'])
-            if len(names_phrase_words) == 0:
-                raise CEList([MissingDataCE(dobj_word, param='names')])
-            elif len(names_phrase_words) > 1:
-                errlist.append(TooManyValuesCE(dobj_word, param='names'))
-            name_phrase_word = names_phrase_words[0]
+        dobj_dets = [x.text for x in dobj_word.get(['det'])]
+        acl_xcomp_roots = dobj_word.get(['acl', 'xcomp'])
+        if acl_xcomp_roots:
+            name_words = get_names(acl_xcomp_roots[0], params["action"] != 'create', errlist)
         else:
-            name_phrase_word = dobj_word
+            name_words = []
 
-        name_words = get_names(name_phrase_word, params["action"] != 'create', errlist)
+        def check_acl_xcomp_roots():
+            if len(acl_xcomp_roots) == 0:
+                raise CEList([MissingDataCE(dobj_word, param='names')])
+            elif len(acl_xcomp_roots) > 1:
+                errlist.append(TooManyValuesCE(dobj_word, param='names'))
+
+        if dobj_word.text == 'turtles':
+            check_acl_xcomp_roots()
+        elif dobj_word.text == 'turtle':
+            if params["action"] == 'create':
+                if dobj_dets == ['a'] or dobj_dets == []:
+                    check_acl_xcomp_roots()
+                else:
+                    errlist.append(BadDataCE(dobj_word, param='turtle determinant', value=dobj_dets[0]))
+            else:
+                if dobj_dets == ['the']:
+                    if len(acl_xcomp_roots) > 0:
+                        check_acl_xcomp_roots()
+                    else:
+                        name_words = [dobj_word]
+                elif dobj_dets == []:
+                    check_acl_xcomp_roots()
+                else:
+                    errlist.append(BadDataCE(dobj_word, param='turtle determinant', value=dobj_dets[0]))
+            if len(name_words) > 1:
+                errlist.append(TooManyValuesCE(dobj_word, param='names'))
+            elif len(name_words) == 0:
+                errlist.append(MissingDataCE(dobj_word, param='names'))
+        else:
+            name_words = get_names(dobj_word, params["action"] != 'create', errlist)
+
         params["names"] = [name_word.text.lower() for name_word in name_words]
 
         if errlist:
@@ -292,7 +319,10 @@ class MakeCSR(CSR):
     def apply(self, word, params, env=None):
         action = params["action"]
         names = params["names"]
-        output = [' '.join([action, name]) for name in names]
+        if action == 'destroy' and 'everyone' in names:
+            output = ['destroy everyone']
+        else:
+            output = [' '.join([action, name]) for name in names]
         return output
 
 class MoveCSR(CSR):
