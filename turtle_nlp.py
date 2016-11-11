@@ -128,6 +128,8 @@ def find_phrase(word):
     word.word_strs = {word.text}
     left_word_objs = []
     right_word_objs = []
+    for edge_type, words in word.edges.items():
+        words.sort(key=(lambda x: x.word_no))
     sorted_words = sorted(word.children_iter(), key=(lambda x: x.word_no))
     for word2 in sorted_words:
         find_phrase(word2)
