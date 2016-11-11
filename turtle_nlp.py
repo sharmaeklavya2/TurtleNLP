@@ -186,6 +186,11 @@ class CSR:
     Non-terminal CSRs will split phrases into parts to be handled by other CSRs.
     """
 
+    def __str__(self):
+        return self.__class__.__name__ + '()'
+    def __repr__(self):
+        return str(self)
+
     def detect(self, word, env=None):
         """
         Detect whether this control structure exists in a particular text.
@@ -227,11 +232,6 @@ def get_names(dobj_word, include_others, errlist):
     return final_names
 
 class MakeCSR(CSR):
-
-    def __str__(self):
-        return 'MakeCSR()'
-    def __repr__(self):
-        return str(self)
 
     actions = {
         'make': 'create',
@@ -328,11 +328,6 @@ class MakeCSR(CSR):
         return output
 
 class MoveCSR(CSR):
-
-    def __str__(self):
-        return 'MoveCSR()'
-    def __repr__(self):
-        return str(self)
 
     directions = {'ahead': 'fd',
         'forward': 'fd',
