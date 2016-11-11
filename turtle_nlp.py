@@ -441,7 +441,7 @@ class MoveCSR(CSR):
         if len(direction_words) == 0:
             errlist.append(MissingDataCE(word, param='direction'))
         elif len(direction_words) > 1:
-            errlist.append(TooManyValues(word, param='direction'))
+            errlist.append(TooManyValuesCE(word, param='direction'))
         else:
             params["direction"] = self.directions[direction_words[0].text]
 
