@@ -281,8 +281,10 @@ class MakeCSR(CSR):
         action_words = [word for word in word.word_objs if word.text.lower() in self.actions and word.pos == 'VB']
         proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
 
+        """
         if len(action_words) > 1:
             debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
+        """
 
         if len(action_words) != 1:
             return None
@@ -415,8 +417,10 @@ class MoveCSR(CSR):
         debugp('\tunit_words={}'.format(unit_words))
         """
 
+        """
         if len(action_words) > 1:
             debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
+        """
 
         if not (len(action_words) == 1 and len(unit_words) == 1):
             return None
