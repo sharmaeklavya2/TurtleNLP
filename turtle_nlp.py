@@ -80,6 +80,11 @@ class TooManyValuesCE(CompileError):
         self.message = 'Too many values specified for {}.'.format(repr(param))
         self.param = param
 
+class TooManyOccsCE(CompileError):
+    def __init__(self, word, text=''):
+        CompileError.__init__(self, word, errcode or 'MANYOCCS')
+        self.message = 'Too many occurences of {}.'.format(repr(text))
+        self.text = text
 class Word:
     text = ''
     word_no = None  # Index of word in list of words in sentence
@@ -500,16 +505,41 @@ class AndCSR(CSR):
             raise CEList([err])
         if not (conj_words and cc_words):
             return None
-        if [x.text for x in cc_words] != ['and']:
-            raise CEList([BadDataCE(word, param='cc', value=cc_word.text)])
+        for x in cc_words:
+            if x.text != 'and':
+                raise CEList([BadDataCE(word, param='cc', value=x.text)])
 
         conj_words = word.get(['conj'])
         delete_edges(word, ['conj', 'cc'])
-        return {'parts': [word] + conj_words}
+        parts = [word] + conj_words
+
+        stack = []
+        output = []
+        for word in reversed(parts):
+            if word.text.lower() in ('do', 'repeat'):
+                output.append('end')
+                times_words = [x for x in word.word_objs if x.text == 'times']
+                if len(times_words) > 1:
+                    raise CEList([TooManyOccsCE(word, text='times')])
+                elif len(times_words) == 1:
+                    try:
+                        amount_str = times_words[0].get(['nummod'])[0].text
+                    except IndexError:
+                        raise CEList([MissingDataCE(word, param='loop repetitions')])
+                    try:
+                        amount = int(amount_str)
+                    except ValueError:
+                        raise CEList([BadDataCE(word, param='loop repetitions', value=amount_str)])
+                    stack.append(amount)
+                # TODO: Support writing once, twice, thrice
+            else:
+                output.append(word)
+
+        output = ['repeat {}'.format(x) for x in stack] + list(reversed(output))
+        return output
 
     def apply(self, word, params, env=None):
-        parts = params['parts']
-        output_list = [convert(part) for part in parts]
+        output_list = [convert(part) if isinstance(part, Word) else [part] for part in params]
         return list(itertools.chain.from_iterable(output_list))
 
 terminal_CSRs = [MakeCSR(), MoveCSR()]
