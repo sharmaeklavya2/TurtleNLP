@@ -1,0 +1,49 @@
+{
+    "text": "Move Eklavya {dir1} by 100 {unit1}s{comma_or_and} {action} Eklavya {dir2} by 90 {unit2}s and do this {reps}.",
+    "result": ["repeat {reps}", "{dir1} eklavya 100.0", "{unit2} eklavya", "{dir2} eklavya 90.0", "end"],
+    "params": {
+        "unit1": ["unit", "step", "pixel"],
+        "comma_or_and": [",", " and"],
+        "action": ["turn", "rotate"]
+    },
+    "paramsd": {
+        "reps": {
+            "once": 1,
+            "twice": 2,
+            "thrice": 3,
+            "4 times": 4
+        },
+        "dir1": {
+            "forward": "fd",
+            "forwards": "fd",
+            "ahead": "fd",
+            "backward": "bk",
+            "backwards": "bk",
+            "up": "up",
+            "upward": "up",
+            "upwards": "up",
+            "down": "down",
+            "downward": "down",
+            "downwards": "down",
+            "left": "shl",
+            "leftward": "shl",
+            "leftwards": "shl",
+            "right": "shr",
+            "rightward": "shr",
+            "rightwards": "shr"
+        },
+        "dir2": {
+            "counterclockwise": "rol",
+            "anticlockwise": "rol",
+            "left": "rol",
+            "leftwards": "rol",
+            "clockwise": "ror",
+            "right": "ror",
+            "rightwards": "ror"
+        },
+        "unit2": {
+            "degree": "deg",
+            "radian": "rad"
+        }
+    }
+}
