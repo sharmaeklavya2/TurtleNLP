@@ -141,6 +141,27 @@ def find_phrase(word):
     word.word_objs = left_word_objs + [word] + right_word_objs
     word.phrase = ' '.join([w.text for w in word.word_objs])
 
+def delete_edges(word, labels_to_del):
+    edges2 = defaultdict(list)
+    for label, value in word.edges.items():
+        if label not in labels_to_del:
+            edges2[label] = value
+    word.edges = edges2
+
+    word.word_strs = {word.text}
+    left_word_objs = []
+    right_word_objs = []
+
+    sorted_words = sorted(word.children_iter(), key=(lambda x: x.word_no))
+    for word2 in sorted_words:
+        if word2.word_no < word.word_no:
+            left_word_objs += word2.word_objs
+        else:
+            right_word_objs += word2.word_objs
+        word.word_strs |= word2.word_strs
+    word.word_objs = left_word_objs + [word] + right_word_objs
+    word.phrase = ' '.join([w.text for w in word.word_objs])
+
 def parse_text(text, server_url):
 
     params = {'properties': "{'annotators': 'pos,depparse', 'outputFormat': 'json'}"}
@@ -468,8 +489,31 @@ class MoveCSR(CSR):
         else:
             return output
 
+class AndCSR(CSR):
+
+    def detect(self, word, env=None):
+        conj_words = word.get(['conj'])
+        cc_words = word.get(['cc'])
+        if (conj_words and not cc_words) or (not conj_words and cc_words):
+            err = CompileError(word, errcode='CONJCC', message=errmsg)
+            err.message = "'conj' and 'cc' should either both be present or both be absent."
+            raise CEList([err])
+        if not (conj_words and cc_words):
+            return None
+        if [x.text for x in cc_words] != ['and']:
+            raise CEList([BadDataCE(word, param='cc', value=cc_word.text)])
+
+        conj_words = word.get(['conj'])
+        delete_edges(word, ['conj', 'cc'])
+        return {'parts': [word] + conj_words}
+
+    def apply(self, word, params, env=None):
+        parts = params['parts']
+        output_list = [convert(part) for part in parts]
+        return list(itertools.chain.from_iterable(output_list))
+
 terminal_CSRs = [MakeCSR(), MoveCSR()]
-nonterminal_CSRs = []
+nonterminal_CSRs = [AndCSR()]
 
 def get_csrs(word, csr_list):
     csr_params = {}
