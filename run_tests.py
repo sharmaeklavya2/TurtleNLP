@@ -38,6 +38,7 @@ class Test:
     has_errors = False
     params = {} # type: Dict[str, Dict[str, str]]
     weight = 1
+    sentences = 1
 
     def from_dict(self, fpath, d):
         # type: (str, dict) -> None
@@ -50,9 +51,11 @@ class Test:
         paramsd = d.get('paramsd', {})
         self.params = defaultdict(dict)
         for template_param, values_list in paramsl.items():
+            self.sentences *= len(values_list)
             for value in values_list:
                 self.params[template_param][value] = value.lower()
         for template_param, values_dict in paramsd.items():
+            self.sentences *= len(values_dict)
             for key, value in values_dict.items():
                 self.params[template_param][key] = value
         self.weight = d.get('weight', 1)
@@ -76,31 +79,36 @@ class Test:
 
 def get_stats(correct, wrong, indent):
     # type: (int, int, int) -> str
-    result_format = 'Pass: {} ({}%), Fail: {} ({}%), Total: {}'
+    result_format = 'Pass: {} ({}%), Fail: {} ({}%)'
     total = correct + wrong
     correct_percent = str(100 * correct / total)[:5]
     wrong_percent = str(100 * wrong / total)[:5]
     correct = str(correct)[:5]
     wrong = str(wrong)[:5]
     indent_str = '\t' * indent
-    return indent_str + result_format.format(correct, correct_percent, wrong, wrong_percent, total)
+    return indent_str + result_format.format(correct, correct_percent, wrong, wrong_percent)
     
 def run_all_tests(path, print_failures, server_url):
     # type: (str, bool, str) -> None
     fpaths = get_test_files(path)
     tot_correct = 0
     tot_wrong = 0
+    tot_sentences = 0
+    tot_weight = 0
     for fpath in fpaths:
         with open(fpath) as fobj:
             test = Test(fpath, json.load(fobj))
-        print('{}: {}'.format(test.fpath, test.weight))
+        print('{}: weight={}, sentences={}'.format(test.fpath, test.weight, test.sentences))
         correct, wrong = run_test(test, print_failures, server_url)
         total = correct + wrong
+        tot_sentences += test.sentences
+        tot_weight += test.weight
         tot_correct += correct * test.weight / total
         tot_wrong += wrong * test.weight / total
         if wrong:
             print(get_stats(correct, wrong, 1))
     print('\n' + get_stats(tot_correct, tot_wrong, 0))
+    print('Total weight: {}, Total sentences: {}'.format(tot_weight, tot_sentences))
 
 def iter_text_output(text_template, output_template, params):
     # type: (str, Dict[str, List[str]]) -> Generator[str, None, None]
