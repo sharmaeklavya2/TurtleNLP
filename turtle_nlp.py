@@ -227,7 +227,7 @@ class CSR:
 
     def apply(self, word, params, env=None):
         """
-        Output turtle code for this CSR for the phrase represented by word.
+        Output tortuga code for this CSR for the phrase represented by word.
         Raise a CompilerError exception with error messages for the user if needed.
         """
         pass
@@ -625,7 +625,7 @@ def convert_text(text, server_url):
     sentences = parse_text(text, server_url)
     return list(itertools.chain.from_iterable((convert(s) for s in sentences)))
 
-def text_to_turtle(gen, server_url, prompt='', promptfile=None):
+def text_to_tortuga(gen, server_url, prompt='', promptfile=None):
     gen = iter(gen)
     while True:
         if promptfile is not None and prompt:
@@ -651,11 +651,11 @@ def main():
         help='Natural language source to interpret. Open interactive shell if not specified.')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-c', metavar='object_file', dest='object_file',
-        help='Compile source to object code and store in this file.')
+        help='Compile source to tortuga code and store in this file.')
     group.add_argument('-d', '--debug', action='store_true', default=False,
         help='Debugging: Detect CSRs and report params.')
     group.add_argument('-d2', '--debug2', action='store_true', default=False,
-        help='Debugging: View turtle output interactively.')
+        help='Debugging: View tortuga output interactively.')
     parser.add_argument('--server', default=DEFAULT_BASE_URL,
         help='URL of CoreNLP server to connect to.')
     args = parser.parse_args()
@@ -692,17 +692,17 @@ def main():
         else:
             with open(args.source) as sobj:
                 with open(args.object_file, 'w') as oobj:
-                    for line in text_to_turtle(sobj, args.server):
+                    for line in text_to_tortuga(sobj, args.server):
                         print(line, file=oobj)
     else:
         if args.source is None:
-            tt = text_to_turtle(sys.stdin, args.server, '>>> ', sys.stdout)
+            tt = text_to_tortuga(sys.stdin, args.server, '>>> ', sys.stdout)
             inpr = Interpreter(tt, sys.stdout)
             inpr.run()
             print()
         else:
             with open(args.source) as sobj:
-                tt = text_to_turtle(sobj, args.server)
+                tt = text_to_tortuga(sobj, args.server)
                 inpr = Interpreter(tt, sys.stdout)
                 inpr.run()
 

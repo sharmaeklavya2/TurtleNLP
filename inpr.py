@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-An interpreter for a custom turtle programming language.
+An interpreter for a custom turtle programming language called tortuga.
 All instructions have an opcode followed by one or more operands.
 Number of arguments for each opcode is fixed.
 """
