@@ -2,21 +2,18 @@
 """
 An interpreter for a custom turtle programming language called tortuga.
 All instructions have an opcode followed by one or more operands.
-Number of arguments for each opcode is fixed.
+Number and types of arguments for each opcode is fixed.
 """
-
-import turtle
-import sys
 
 opcodes = {
     # Here x is the first arg and y is the second arg
     # basic commands
     'fd': [str, float],    # forward
     'bk': [str, float],    # backward
-    'rol': [str, float],   # rotate left
-    'ror': [str, float],   # rotate right
-    'shl': [str, float],   # shift left (anti-clockwise)
-    'shr': [str, float],   # shift right (clockwise)
+    'rol': [str, float],   # rotate left (anti-clockwise)
+    'ror': [str, float],   # rotate right (clockwise)
+    'shl': [str, float],   # shift left
+    'shr': [str, float],   # shift right
     'up': [str, float],
     'down': [str, float],
     'deg': [str],   # set angle measure to degrees for turtle x
@@ -27,6 +24,9 @@ opcodes = {
     'repeat': [int],    # repeat a code block x times
     'end': [],   # end of code block
 }
+
+import turtle
+import sys
 
 def check_types(values, types):
     n = len(values)
