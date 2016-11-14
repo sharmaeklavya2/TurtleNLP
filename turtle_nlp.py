@@ -19,7 +19,8 @@ class CompileError:
         self.message = 'An error occured.'
 
     def __repr__(self):
-        return 'CompileError({}, {}, {})'.format(repr(self.errcode), repr(self.phrase), repr(self.message))
+        return 'CompileError({}, {}, {})'.format(
+            repr(self.errcode), repr(self.phrase), repr(self.message))
 
     def __str__(self):
         return self.message
@@ -34,7 +35,8 @@ class CEList(Exception):
         for error in errors:
             errors_by_word_no[error.word.word_no].append(error)
         lines = []
-        for word_no, error_list in sorted(errors_by_word_no.items(), key=(lambda x: x[0])):
+        sorted_errors = sorted(errors_by_word_no.items(), key=(lambda x: x[0]))
+        for word_no, error_list in sorted_errors:
             lines.append('Error in phrase: ' + error_list[0].word.phrase)
             for error in error_list:
                 lines.append('\t{}: {}'.format(error.errcode, error.message))
@@ -125,7 +127,8 @@ class Word:
                 yield v
 
 def print_preorder(word, edge_type='root', indent=0, file=sys.stdout):
-    print('{}{}: {}, {}'.format('  '*indent, edge_type, repr(word.text), repr(word.phrase)), file=file)
+    print('{}{}: {}, {}'.format('  '*indent, edge_type, repr(word.text),
+        repr(word.phrase)), file=file)
     for edge_type2, word2 in sorted(word.edge_iter(), key=(lambda x: x[1].word_no)):
         print_preorder(word2, edge_type2, indent + 1)
 
@@ -221,14 +224,15 @@ class CSR:
         """
         Detect whether this control structure exists in a particular text.
         Output parameters of this control structure if it exists, otherwise output None.
-        If it is found that the control structure is correct but has been used wrongly, raise a
+        If it is found that the control structure is correct but has been used wrongly,
+        raise a CEList.
         """
         pass
 
     def apply(self, word, params, env=None):
         """
         Output tortuga code for this CSR for the phrase represented by word.
-        Raise a CompilerError exception with error messages for the user if needed.
+        Raise a CEList exception with error messages for the user if needed.
         """
         pass
 
@@ -247,7 +251,8 @@ def get_names(dobj_word, include_others, errlist):
         if is_name_word(name):
             final_names.append(name)
         elif any((x in name.edges for x in ['compound', 'nmod:npmod', 'nsubj'])):
-            indirect_edges = name.edges['compound'] + name.edges['nmod:npmod'] + name.edges['nsubj']
+            indirect_edges = (name.edges['compound'] +
+                name.edges['nmod:npmod'] + name.edges['nsubj'])
             if len(indirect_edges) == 1 and is_name_word(indirect_edges[0]):
                 final_names.append(indirect_edges[0])
                 # This is a workaround for a bug where CoreNLP makes
@@ -280,13 +285,9 @@ class MakeCSR(CSR):
         Make Manish and Eklavya.
         Make turtles Manish and Eklavya.
         """
-        action_words = [word for word in word.word_objs if word.text.lower() in self.actions and word.pos == 'VB']
+        action_words = [word for word in word.word_objs
+            if word.text.lower() in self.actions and word.pos == 'VB']
         proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
-
-        """
-        if len(action_words) > 1:
-            debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
-        """
 
         if len(action_words) != 1:
             return None
@@ -324,7 +325,8 @@ class MakeCSR(CSR):
                 if dobj_dets == ['a'] or dobj_dets == []:
                     check_acl_xcomp_roots()
                 else:
-                    errlist.append(BadDataCE(dobj_word, param='turtle determinant', value=dobj_dets[0]))
+                    errlist.append(BadDataCE(dobj_word, param='turtle determinant',
+                        value=dobj_dets[0]))
             else:
                 if dobj_dets == ['the']:
                     if len(acl_xcomp_roots) > 0:
@@ -334,7 +336,8 @@ class MakeCSR(CSR):
                 elif dobj_dets == []:
                     check_acl_xcomp_roots()
                 else:
-                    errlist.append(BadDataCE(dobj_word, param='turtle determinant', value=dobj_dets[0]))
+                    errlist.append(BadDataCE(dobj_word, param='turtle determinant',
+                        value=dobj_dets[0]))
             if len(name_words) > 1:
                 errlist.append(TooManyValuesCE(dobj_word, param='names'))
             elif len(name_words) == 0:
@@ -408,7 +411,8 @@ class MoveCSR(CSR):
         action_words = [word for word in word.word_objs
             if word.text.lower() in self.actions and word.pos == 'VB']
         proper_nouns = [word for word in word.word_objs if word.pos == 'NNP']
-        direction_words = [word for word in word.word_objs if word.text in self.directions]
+        direction_words = [word for word in word.word_objs
+            if word.text in self.directions]
         unit_words = [word for word in word.word_objs if word.text in self.units]
 
         """
@@ -417,11 +421,6 @@ class MoveCSR(CSR):
         debugp('\tname_words={}'.format(name_words))
         debugp('\tdirection_words={}'.format(direction_words))
         debugp('\tunit_words={}'.format(unit_words))
-        """
-
-        """
-        if len(action_words) > 1:
-            debugp('warning: MoveCSR: Multiple action words detected in phrase:\n{}'.format(word.phrase))
         """
 
         if not (len(action_words) == 1 and len(unit_words) == 1):
@@ -562,7 +561,8 @@ class AndCSR(CSR):
                     try:
                         amount = int(amount_str)
                     except ValueError:
-                        raise CEList([BadDataCE(word, param='loop repetitions', value=amount_str)])
+                        raise CEList([BadDataCE(word, param='loop repetitions',
+                            value=amount_str)])
                     stack.append(amount)
                 else:
                     if 'once' in word.word_strs:
@@ -580,7 +580,8 @@ class AndCSR(CSR):
         return output
 
     def apply(self, word, params, env=None):
-        output_list = [convert(part) if isinstance(part, Word) else [part] for part in params]
+        output_list = [convert(part)
+            if isinstance(part, Word) else [part] for part in params]
         return list(itertools.chain.from_iterable(output_list))
 
 terminal_CSRs = [MakeCSR(), MoveCSR()]

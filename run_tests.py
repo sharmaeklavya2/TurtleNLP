@@ -22,7 +22,8 @@ def get_test_files(path):
         for (dirpath, dnames, fnames) in os.walk(path):
             dnames.sort()
             fnames.sort()
-            json_files = [os.path.join(dirpath, fname) for fname in fnames if os.path.splitext(fname)[1] == '.json']
+            json_files = [os.path.join(dirpath, fname) for fname in fnames
+                if os.path.splitext(fname)[1] == '.json']
             paths += sorted(json_files)
         return paths
     elif os.path.isfile(path):
@@ -47,7 +48,8 @@ class Test:
         self.text = d['text']
         paramsl = d.get('params', {})
         if 'result' not in d and 'paramsd' in d:
-            raise Exception("'paramsd' present without 'result' in {}: {}".format(fpath, self.name))
+            error_template = "'paramsd' present without 'result' in {}: {}"
+            raise Exception(error_template.format(fpath, self.name))
         paramsd = d.get('paramsd', {})
         self.params = defaultdict(dict)
         for template_param, values_list in paramsl.items():
@@ -66,7 +68,8 @@ class Test:
         if 'result' in d and 'errors' in d:
             raise Exception("Found both 'result' and 'errors' in {}: {}".format(fpath, self.name))
         elif 'result' not in d and 'errors' not in d:
-            raise Exception("Found neither 'result' nor 'errors' in {}: {}".format(fpath, self.name))
+            error_template = "Found neither 'result' nor 'errors' in {}: {}"
+            raise Exception(error_template.format(fpath, self.name))
         self.has_errors = 'errors' in d
         self.output = d.get('result', sorted(d.get('errors', ())))
 
@@ -98,7 +101,8 @@ def run_all_tests(path, print_failures, server_url):
     for fpath in fpaths:
         with open(fpath) as fobj:
             test = Test(fpath, json.load(fobj))
-        print('{}: weight={}, sentences={}'.format(test.fpath, test.weight, test.sentences))
+        print('{}: weight={}, sentences={}'.format(test.fpath,
+            test.weight, test.sentences))
         correct, wrong = run_test(test, print_failures, server_url)
         total = correct + wrong
         tot_sentences += test.sentences
@@ -117,10 +121,13 @@ def iter_text_output(text_template, output_template, params):
     template_dicts = [list(x[1].items()) for x in params_as_list]
     values_instances = itertools.product(*template_dicts)
     for values_instance in values_instances:
-        text_replacements = {k: v for k, v in zip(template_params, [x[0] for x in values_instance])}
-        output_replacements = {k: v for k, v in zip(template_params, [x[1] for x in values_instance])}
+        text_replacements = {k: v for k, v in zip(template_params,
+            [x[0] for x in values_instance])}
+        output_replacements = {k: v for k, v in zip(template_params,
+            [x[1] for x in values_instance])}
         text = text_template.format(**text_replacements)
-        output = [instr_template.format(**output_replacements) for instr_template in output_template]
+        output = [instr_template.format(**output_replacements)
+            for instr_template in output_template]
         yield (text, output)
 
 def execute_sentence(text, server_url):
